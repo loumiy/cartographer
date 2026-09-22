@@ -1,0 +1,71 @@
+/* Cartographer design tokens — generated from docs/style-guide/tokens.json */
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Alegreya+Sans:wght@400;500;700&display=swap');
+
+:root, [data-theme="day"] {
+  --vellum: #EDE3CC;
+  --vellum-deep: #E2D5B8;
+  --fog: #D8CCB0;
+  --ink: #2A2620;
+  --ink-muted: #5E5445;
+  --ink-faint: #A89878;
+  --sea: #A9C2BB;
+  --land: #E6D7A8;
+  --vermilion: #A6321F;
+  --verdigris: #355E44;
+  --gilt: #B8913A;
+  --gilt-ink: #6E5019;
+  --shadow-paper: 0 1px 0 rgba(42,38,32,0.18), 0 3px 8px rgba(42,38,32,0.10);
+}
+[data-theme="lamp"] {
+  --vellum: #1E1B16;
+  --vellum-deep: #29251E;
+  --fog: #34302A;
+  --ink: #EADFC6;
+  --ink-muted: #B3A78F;
+  --ink-faint: #5A5040;
+  --sea: #2C3D3A;
+  --land: #3A3424;
+  --vermilion: #E0735F;
+  --verdigris: #8CC09C;
+  --gilt: #C9A24E;
+  --gilt-ink: #D8B563;
+  --shadow-paper: 0 1px 0 rgba(0,0,0,0.5), 0 4px 10px rgba(0,0,0,0.35);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="day"]) {
+    --vellum: #1E1B16;
+    --vellum-deep: #29251E;
+    --fog: #34302A;
+    --ink: #EADFC6;
+    --ink-muted: #B3A78F;
+    --ink-faint: #5A5040;
+    --sea: #2C3D3A;
+    --land: #3A3424;
+    --vermilion: #E0735F;
+    --verdigris: #8CC09C;
+    --gilt: #C9A24E;
+    --gilt-ink: #D8B563;
+    --shadow-paper: 0 1px 0 rgba(0,0,0,0.5), 0 4px 10px rgba(0,0,0,0.35);
+  }
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-10: 40px;
+  --radius-none: 0;
+  --radius-sm: 2px;
+  --radius-seal: 50%;
+  --font-display: "IM Fell English", "Iowan Old Style", Georgia, serif;
+  --font-body: "Alegreya Sans", "Gill Sans", "Segoe UI", system-ui, sans-serif;
+}
+.title { font-family: var(--font-display); font-size: 56px; line-height: 60px; font-weight: 400; }
+.heading { font-family: var(--font-display); font-size: 30px; line-height: 36px; font-weight: 400; }
+.place-name { font-family: var(--font-display); font-size: 18px; line-height: 22px; font-weight: 400; font-style: italic; }
+.place-name-sm { font-family: var(--font-display); font-size: 14px; line-height: 18px; font-weight: 400; font-style: italic; }
+.log { font-family: var(--font-display); font-size: 18px; line-height: 28px; font-weight: 400; }
+.body { font-family: var(--font-body); font-size: 16px; line-height: 24px; font-weight: 400; }
+.label { font-family: var(--font-body); font-size: 14px; line-height: 20px; font-weight: 500; }
+.figure { font-family: var(--font-body); font-size: 22px; line-height: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.caption { font-family: var(--font-body); font-size: 13px; line-height: 18px; font-weight: 400; }
