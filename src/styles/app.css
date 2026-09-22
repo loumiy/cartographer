@@ -1,0 +1,537 @@
+/* Layout and components. Colours, type and spacing come only from tokens.css. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--vellum);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+#app {
+  height: 100%;
+}
+
+h1,
+h2,
+h3,
+p,
+ul,
+ol,
+dl,
+dd {
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.muted {
+  color: var(--ink-muted);
+}
+.risk {
+  color: var(--vermilion);
+}
+.safe {
+  color: var(--verdigris);
+}
+.money {
+  color: var(--gilt-ink);
+  font-variant-numeric: tabular-nums;
+}
+.btn .money {
+  color: inherit;
+}
+.caption.money,
+.caption .money {
+  font-weight: 500;
+}
+
+/* ---- Buttons ---------------------------------------------------------- */
+
+.btn {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+.btn:hover:not([disabled]) {
+  background: var(--vellum-deep);
+}
+.btn-primary {
+  background: var(--ink);
+  color: var(--vellum);
+}
+.btn-primary:hover:not([disabled]) {
+  background: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.btn-risk {
+  border-color: var(--vermilion);
+  color: var(--vermilion);
+}
+.btn-quiet {
+  border-color: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+}
+.btn[disabled] {
+  color: var(--ink-muted);
+  border-color: var(--ink-muted);
+  background: transparent;
+  cursor: not-allowed;
+}
+.btn-quiet[disabled] {
+  border-color: transparent;
+}
+.btn .key {
+  font-size: 13px;
+  line-height: 18px;
+  min-width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+}
+
+.icon-play {
+  width: 0;
+  height: 0;
+  border-left: 9px solid currentColor;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+}
+.icon-pause {
+  width: 10px;
+  height: 12px;
+  border-left: 3px solid currentColor;
+  border-right: 3px solid currentColor;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.row.wrap {
+  flex-wrap: wrap;
+}
+
+/* ---- Title screen ------------------------------------------------------ */
+
+.title-screen {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: var(--space-10) var(--space-4);
+}
+.title-sheet {
+  max-width: 620px;
+  display: grid;
+  gap: var(--space-6);
+}
+.rules {
+  padding-left: var(--space-6);
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* ---- Game layout: the chart is the screen, the ledger sits at its edge -- */
+
+.game {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-1) var(--space-4);
+  border-bottom: 1px solid var(--ink-faint);
+  flex-wrap: wrap;
+}
+.brand {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 32px;
+}
+.topbar-stat {
+  white-space: nowrap;
+}
+.spacer {
+  flex: 1;
+}
+.table {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  min-height: 0;
+}
+.chart-wrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.chart-canvas {
+  display: block;
+  cursor: crosshair;
+}
+.ledger {
+  border-left: 1px solid var(--ink-faint);
+  background: var(--vellum);
+  overflow-y: auto;
+  min-height: 0;
+}
+.ledger-inner {
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-4);
+}
+.ledger-head {
+  display: grid;
+  gap: var(--space-1);
+}
+.section {
+  border-top: 1px solid var(--ink-faint);
+  padding-top: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
+.controls {
+  display: grid;
+  gap: var(--space-2);
+}
+.speed {
+  display: inline-flex;
+  margin-left: auto;
+}
+.speed-btn {
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  color: var(--ink-muted);
+  border: 1.5px solid var(--ink);
+  padding: var(--space-2) var(--space-2);
+  min-width: 40px;
+  cursor: pointer;
+}
+.speed-btn + .speed-btn {
+  border-left: 0;
+}
+.speed-btn:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+.speed-btn:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.speed-btn.on {
+  background: var(--ink);
+  color: var(--vellum);
+}
+.choice-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.alert {
+  border-left: 3px solid var(--ink);
+  background: var(--vellum-deep);
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-display);
+  font-size: 18px;
+  line-height: 26px;
+}
+
+/* ---- Gauges ------------------------------------------------------------- */
+
+.gauge {
+  display: grid;
+  gap: var(--space-1);
+}
+.gauge-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.gauge-track {
+  position: relative;
+  height: 10px;
+  border: 1px solid var(--ink);
+  background: var(--vellum-deep);
+}
+.gauge-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ink);
+}
+.gauge-mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 0;
+  border-left: 2px dashed var(--vermilion);
+}
+.gauge-mark.muted {
+  border-left: 1px solid var(--ink-muted);
+}
+
+/* ---- Stats, log, ledger rows ------------------------------------------ */
+
+.stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-4);
+  align-items: baseline;
+}
+.stats dd {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.log-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.log-entry {
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 24px;
+}
+.log-entry.bad .log-day {
+  color: var(--vermilion);
+}
+.log-entry.good .log-day {
+  color: var(--verdigris);
+}
+.log-day {
+  font-family: var(--font-display);
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+  border-bottom: 1px solid var(--ink-faint);
+}
+.tab {
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-muted);
+  padding: var(--space-2) 0;
+  cursor: pointer;
+}
+.tab.on {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.tab-body > div {
+  display: grid;
+  gap: var(--space-4);
+}
+.ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--ink-faint);
+}
+.row-actions {
+  display: flex;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.contract {
+  display: grid;
+  gap: var(--space-1);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--ink-faint);
+  justify-items: start;
+}
+.contract.accepted {
+  border-left: 3px solid var(--verdigris);
+  padding-left: var(--space-2);
+}
+.contract-status.done {
+  border-left: 3px solid var(--verdigris);
+  padding-left: var(--space-2);
+}
+.sail-bar {
+  position: sticky;
+  bottom: 0;
+  background: var(--vellum);
+  border-top: 1px solid var(--ink-faint);
+  padding: var(--space-4) 0;
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+.chart-case,
+.cargo {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: stretch;
+}
+.cargo {
+  justify-items: start;
+}
+.seal {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: var(--space-2);
+  border-radius: var(--radius-seal);
+  background: var(--gilt);
+  outline: 1.5px solid var(--ink);
+  outline-offset: 2px;
+  vertical-align: -1px;
+}
+
+/* ---- The event card ---------------------------------------------------- */
+
+.card-host {
+  position: absolute;
+  top: var(--space-4);
+  bottom: var(--space-4);
+  width: min(460px, calc(100% - 2 * var(--space-4)));
+  pointer-events: none;
+  display: flex;
+  align-items: flex-start;
+}
+.card-host.right {
+  right: var(--space-4);
+}
+.card-host.left {
+  left: var(--space-4);
+}
+.card-host:not(.left):not(.right) {
+  right: var(--space-4);
+}
+.card-host:has(.card-wide) {
+  width: min(560px, calc(100% - 2 * var(--space-4)));
+}
+.card {
+  pointer-events: auto;
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  background: var(--vellum-deep);
+  box-shadow: var(--shadow-paper);
+  border-radius: var(--radius-sm);
+  padding: var(--space-6);
+  display: grid;
+  gap: var(--space-4);
+}
+.choices {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.choice {
+  display: grid;
+  grid-template-columns: minmax(0, auto) 1fr;
+  align-items: center;
+  gap: var(--space-4);
+}
+.choice .caption {
+  text-align: right;
+}
+.naming {
+  display: grid;
+  gap: var(--space-2);
+}
+.name-input {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 18px;
+  line-height: 22px;
+  color: var(--ink);
+  background: var(--vellum);
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+
+/* ---- Narrow screens: the ledger drops below the chart ------------------ */
+
+@media (max-width: 860px) {
+  .game {
+    height: auto;
+    min-height: 100%;
+  }
+  .table {
+    grid-template-columns: 1fr;
+  }
+  .chart-wrap {
+    height: 62vh;
+  }
+  .ledger {
+    border-left: 0;
+    border-top: 1px solid var(--ink-faint);
+  }
+  .topbar {
+    gap: var(--space-2) var(--space-4);
+  }
+  .card-host,
+  .card-host.left,
+  .card-host.right,
+  .card-host:has(.card-wide) {
+    left: var(--space-2);
+    right: var(--space-2);
+    width: auto;
+  }
+  .choice {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+  .choice .caption {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

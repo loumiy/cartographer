@@ -1,0 +1,19 @@
+{
+  "name": "cartographer",
+  "private": true,
+  "version": "0.1.0",
+  "description": "An Age-of-Exploration voyage game: chart a fog-covered sea, then sell your charts or keep them secret.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}
