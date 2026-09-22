@@ -50,6 +50,9 @@ dd {
   color: var(--gilt-ink);
   font-variant-numeric: tabular-nums;
 }
+.btn .money {
+  color: inherit;
+}
 .caption.money,
 .caption .money {
   font-weight: 500;

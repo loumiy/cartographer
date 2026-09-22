@@ -320,9 +320,22 @@ function portLedger(ctx: UiContext): HTMLElement {
         state.accepted ? `Under contract: ${state.accepted.title}.` : 'No contract: a freelance voyage.',
         ` Port fee and wage advances: ${money(voyageCost(state))}.`,
       ),
+      paymentWarning(state),
       button('Set sail', () => ctx.act(setSail), { kind: 'primary', disabled: why ?? false }),
       why ? h('p', { class: 'caption risk' }, why) : null,
     ),
+  );
+}
+
+/** Warn before sailing when the stores outlast the next payment date: it will be collected on return. */
+function paymentWarning(state: GameState) {
+  const until = seasonOf(state.day).nextSeasonDay - state.day;
+  const range = Math.floor(state.ship.provisions / Math.max(1, state.ship.crew));
+  if (range < until || state.debt <= 0) return null;
+  return h(
+    'p',
+    { class: 'caption risk' },
+    `A payment of ${money(Math.min(state.paymentPerSeason, state.debt))} falls due in ${until} days. Be home with it after that, or the ship is taken.`,
   );
 }
 
@@ -460,7 +473,9 @@ export function chartCaseList(ctx: UiContext, only: number[] | null) {
             'div',
             { class: 'caption muted' },
             h('span', { class: 'money' }, money(item.value)),
-            site ? ` · cargo ${money(unitPrice(site))} a unit while secret · about ${Math.round(secretRisk(state, site) * 100)}% a season that others find it` : '',
+            site
+              ? ` · cargo ${money(unitPrice(site))} a unit while secret, ${money(unitPrice({ ...site, knownBy: CONFIG.publicKnownBy }))} once sold · about ${Math.round(secretRisk(state, site) * 100)}% a season that others find it`
+              : '',
           ),
           kept ? h('div', { class: 'caption safe' }, `Kept secret: ${item.label}`) : null,
         ),

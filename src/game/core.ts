@@ -1,6 +1,6 @@
 import { Rng } from '../rng';
 import { CONFIG } from './config';
-import { findPath, pathLength } from './pathfind';
+import { findPath } from './pathfind';
 import { cellAt, idx, inBounds, remoteness } from './world';
 import { Cell, type GameState, type Interrupt, type Site } from './types';
 
@@ -118,7 +118,18 @@ export function updateHomeEstimate(state: GameState) {
     return;
   }
   v.homeRoute = path;
-  v.homeDays = Math.ceil(pathLength(state.ship, path) / CONFIG.speedOpen);
+  // Sum the route at the speed each stretch will actually be sailed: slower along charted coasts.
+  let days = 0;
+  let px = state.ship.x;
+  let py = state.ship.y;
+  const slow = state.ship.crew < 10 ? 0.75 : 1;
+  for (const p of path) {
+    const coastal = knownLandNear(state, p.x, p.y, CONFIG.coastRange);
+    days += Math.hypot(p.x - px, p.y - py) / ((coastal ? CONFIG.speedCoast : CONFIG.speedOpen) * slow);
+    px = p.x;
+    py = p.y;
+  }
+  v.homeDays = Math.ceil(days);
 }
 
 /** Unit price of a site's cargo: richer is dearer, and every ship that knows the route cuts it. */

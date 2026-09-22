@@ -124,6 +124,7 @@ function checkLost(state: GameState): boolean {
 }
 
 export function gameOver(state: GameState, outcome: 'won' | 'lost', title: string, body: string) {
+  if (state.mode === 'over') return;
   state.mode = 'over';
   state.outcome = outcome;
   state.pending = [{ kind: 'gameover', title, body, choices: [{ id: 'new', label: 'Begin a new game' }] }];
@@ -496,7 +497,8 @@ export function resolve(state: GameState, choiceId: string) {
       } else if (choiceId === 'shelter') {
         const path = shelterWithin(state, warned ? 10 : 6);
         if (path) {
-          const last = path[path.length - 1];
+          // An empty path means we already lie in the lee of the land.
+          const last = path[path.length - 1] ?? ship;
           ship.x = last.x;
           ship.y = last.y;
           const dmg = withRng(state, (rng) => rng.int(0, 4));

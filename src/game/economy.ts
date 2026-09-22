@@ -58,6 +58,7 @@ export function voyageCost(state: GameState) {
 
 export function canSail(state: GameState): string | null {
   if (state.mode !== 'port') return 'Not in port';
+  if (state.pending.length) return 'Finish on the quay first';
   if (state.paymentsDue > 0) return 'Pay the financier first';
   if (state.ship.crew < CONFIG.crewMin) return `Sign on at least ${CONFIG.crewMin} crew`;
   if (state.ship.provisions < state.ship.crew * 5) return 'Load at least five days of provisions';

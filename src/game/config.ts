@@ -19,7 +19,7 @@ export const CONFIG = {
 
   startCash: 200,
   debt: 2500,
-  paymentPerSeason: 250,
+  paymentPerSeason: 200,
 
   crewMin: 6,
   crewMax: 20,
@@ -42,7 +42,7 @@ export const CONFIG = {
   repairCostPerPoint: 2,
   portFee: 10,
 
-  chartRatePerCell: 0.3,
+  chartRatePerCell: 0.5,
   landmassValue: { islet: 30, island: 70, 'large island': 120, coast: 180 } as Record<string, number>,
   /** Site sale value as a share of one full hold of its cargo at the secret price. */
   siteSaleShare: 0.7,
@@ -51,10 +51,10 @@ export const CONFIG = {
   knownByMax: 10,
 
   resources: {
-    timber: { price: 5, stock: 20, label: 'Timber' },
-    furs: { price: 11, stock: 14, label: 'Furs' },
-    spice: { price: 22, stock: 10, label: 'Spice' },
-    pearls: { price: 38, stock: 7, label: 'Pearls' },
+    timber: { price: 7, stock: 20, label: 'Timber' },
+    furs: { price: 14, stock: 14, label: 'Furs' },
+    spice: { price: 28, stock: 10, label: 'Spice' },
+    pearls: { price: 46, stock: 7, label: 'Pearls' },
   } as Record<ResourceType, { price: number; stock: number; label: string }>,
 
   upgrades: {

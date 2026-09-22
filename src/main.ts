@@ -335,6 +335,7 @@ function startGame(state: GameState) {
     writeSave(state);
   };
   current = state;
+  if (import.meta.env.DEV) Object.assign(window, { cartographer: { state, act: ctx.act } });
   renderAll();
 }
 

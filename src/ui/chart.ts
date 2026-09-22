@@ -323,7 +323,10 @@ export class Chart {
       s.n++;
       s.top = Math.min(s.top, y);
     }
-    for (const lm of world.landmasses) {
+    const placed: { x: number; y: number; w: number; h: number }[] = [];
+    // Larger land first: its names claim their place before small islands do.
+    const order = world.landmasses.slice().sort((a, b) => sums[b.id].n - sums[a.id].n);
+    for (const lm of order) {
       const sum = sums[lm.id];
       if (!lm.discovered || lm.home || !sum.n) continue;
       const big = lm.kind === 'coast' || lm.kind === 'large island';
@@ -334,7 +337,20 @@ export class Chart {
       const small = sum.n < 16;
       const at = small ? { x: sum.x / sum.n + 0.5, y: sum.top } : { x: sum.x / sum.n + 0.5, y: sum.y / sum.n + 0.5 };
       const s = this.toScreen(at);
-      ctx.fillText(label, s.x, small ? s.y - 10 : s.y);
+      const base = small ? s.y - 10 : s.y;
+      const w = ctx.measureText(label).width;
+      const hgt = big ? 22 : 18;
+      // Nudge the name up or down until it clears the names already set.
+      let y = base;
+      for (const dy of [0, -hgt, hgt, -2 * hgt, 2 * hgt]) {
+        const r = { x: s.x - w / 2, y: base + dy - hgt / 2, w, h: hgt };
+        if (!placed.some((q) => r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h)) {
+          y = base + dy;
+          break;
+        }
+      }
+      placed.push({ x: s.x - w / 2, y: y - hgt / 2, w, h: hgt });
+      ctx.fillText(label, s.x, y);
     }
   }
 
@@ -573,14 +589,27 @@ function drawWreck(ctx: CanvasRenderingContext2D, s: Pt, p: Palette) {
   ctx.strokeStyle = p.ink;
   ctx.lineWidth = 1.5;
   ctx.lineCap = 'square';
+  ctx.lineJoin = 'miter';
   ctx.beginPath();
-  // Two halves of a hull, broken in the middle, and a leaning mast.
-  ctx.moveTo(-8, -1);
-  ctx.quadraticCurveTo(-6, 4, -1, 4);
-  ctx.moveTo(1, 2);
-  ctx.quadraticCurveTo(6, 3, 8, -2);
-  ctx.moveTo(-3, 3);
-  ctx.lineTo(1, -6);
+  // A hull seen side-on, broken by a jagged gap, with a toppled mast.
+  ctx.moveTo(-10, 0);
+  ctx.lineTo(-7, 5);
+  ctx.lineTo(-2, 5);
+  ctx.lineTo(-1, 2);
+  ctx.lineTo(-3, 0);
+  ctx.moveTo(1, 0);
+  ctx.lineTo(2, 3);
+  ctx.lineTo(1, 5);
+  ctx.lineTo(7, 5);
+  ctx.lineTo(10, 0);
+  ctx.moveTo(-10, 0);
+  ctx.lineTo(-3, 0);
+  ctx.moveTo(1, 0);
+  ctx.lineTo(10, 0);
+  ctx.moveTo(4, 0);
+  ctx.lineTo(9, -8);
+  ctx.moveTo(5, -6);
+  ctx.lineTo(9, -4);
   ctx.stroke();
   ctx.restore();
 }
