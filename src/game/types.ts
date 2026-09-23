@@ -111,7 +111,18 @@ export interface CargoLot {
 
 export type Rations = 'full' | 'short';
 
+export type ShipKind = 'pinnace' | 'brig';
+
+/** Refits belong to a hull: they go with the ship when command changes. */
+export interface Refits {
+  stores: number;
+  hold: number;
+}
+
 export interface Ship {
+  name: string;
+  kind: ShipKind;
+  refits: Refits;
   x: number;
   y: number;
   crew: number;
@@ -124,12 +135,55 @@ export interface Ship {
   rations: Rations;
 }
 
+/** Instruments belong to the captain and go with them from ship to ship. */
 export interface Upgrades {
   spyglass: number;
   barometer: boolean;
   surveyKit: boolean;
-  stores: number;
-  hold: number;
+}
+
+/** A trading post built at a surveyed site. It gathers the site's cargo each season. */
+export interface Post {
+  id: number;
+  siteId: number;
+  name: string;
+  foundedDay: number;
+  /** Cargo gathered and waiting to be collected. */
+  warehouse: number;
+  lastSupplied: number;
+  abandoned: boolean;
+}
+
+/** A ship the captain is not sailing: laid up in a port, or working a route. */
+export interface Vessel {
+  id: number;
+  name: string;
+  kind: ShipKind;
+  hull: number;
+  refits: Refits;
+  /** Port it lies in, or the port its route started from. */
+  portId: number;
+  routeId: number | null;
+}
+
+export interface RouteStop {
+  kind: 'port' | 'post';
+  id: number;
+}
+
+/** A charted round of ports and posts that a vessel sails each season without us. */
+export interface Route {
+  id: number;
+  vesselId: number;
+  stops: RouteStop[];
+  /** Round-trip length in leagues. */
+  length: number;
+  /** The charted way round, simplified, for drawing. */
+  path: { x: number; y: number }[];
+  /** Chance each season of losing the ship. */
+  risk: number;
+  lastIncome: number;
+  lastNote: string;
 }
 
 export type ContractKind = 'chart_region' | 'find_land' | 'find_resource' | 'despatches' | 'passage' | 'supply_post';
@@ -242,6 +296,8 @@ export interface Voyage {
   leftHome: boolean;
   /** Port the voyage started from. */
   startPort: number;
+  /** Days to the nearest haven, port or trading post: what the point of no return is measured against. */
+  havenDays: number;
   /** Nearest known port by charted water: its id, days away and route. */
   homePort: number;
   homeDays: number;
@@ -312,6 +368,11 @@ export interface GameState {
   pending: Interrupt[];
   /** Contract accepted in port for the next voyage. */
   accepted: Contract | null;
+  posts: Post[];
+  fleet: Vessel[];
+  routes: Route[];
+  /** Milestones reached, by id. */
+  milestones: string[];
   /** The last voyage's report, for the arrival screen. */
   report: VoyageReport | null;
   /** News that happened while at sea, told on return. */

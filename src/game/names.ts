@@ -46,3 +46,11 @@ const POWERS = ['the Lusan Crown', 'the Valdran Company', 'the Free City of Oste
 export function farPort(rng: Rng): { name: string; power: string } {
   return { name: rng.pick(FAR_PORTS), power: rng.pick(POWERS) };
 }
+
+const SHIP_NAMES = ['Hopewell', 'Swallow', 'Pelican', 'Speedwell', 'Merlin', 'Good Intent', 'Resolution', 'Heron', 'Endeavour', 'Kestrel', 'Patience', 'Wanderer'];
+
+/** A ship's name not already in use. */
+export function shipName(rng: Rng, used: string[]): string {
+  const free = SHIP_NAMES.filter((n) => !used.includes(n));
+  return free.length ? rng.pick(free) : `${rng.pick(SHIP_NAMES)} ${used.length + 1}`;
+}

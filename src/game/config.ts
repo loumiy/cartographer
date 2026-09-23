@@ -25,19 +25,54 @@ export const CONFIG = {
   paymentPerSeason: 200,
 
   crewMin: 6,
-  crewMax: 20,
   crewStart: 12,
   crewLostBelow: 3,
   wageAdvance: 3,
   wagePerDay: 0.1,
 
   provisionCost: 0.1,
-  provisionCapBase: 500,
   provisionCapPerLevel: 200,
   shortRations: 0.6,
 
-  cargoCapBase: 16,
   cargoCapPerLevel: 8,
+
+  /** Hulls. A brig carries more and takes storm and reef damage less hard. */
+  ships: {
+    pinnace: { label: 'Pinnace', stores: 500, hold: 16, crewMax: 20, toughness: 1, cost: 700 },
+    brig: { label: 'Brig', stores: 800, hold: 32, crewMax: 30, toughness: 0.7, cost: 1600 },
+  },
+
+  post: {
+    cost: 400,
+    timber: 15,
+    /** A resupply run: timber and stores landed at the post. */
+    supplyTimber: 5,
+    supplyStores: 50,
+    /** Seasons since last supplied: full output below the first, half below the second, abandoned at the third. */
+    fullFor: 3,
+    halfFor: 5,
+    abandonAt: 6,
+    /** Warehouse holds this many seasons of output. */
+    warehouseSeasons: 3,
+    /** Stores and repairs at a post cost this much more than in port. */
+    markup: 1.5,
+  },
+
+  route: {
+    /** Wages and victuals for a route ship, per season. */
+    costs: 40,
+    /** Per post on the route: the route ship keeps it supplied. */
+    postUpkeep: 30,
+    /** The route ship's master takes this share of the takings. */
+    masterShare: 0.25,
+    /** A route between two ports with no posts earns on trade alone. */
+    portTrade: 60,
+    baseRisk: 0.02,
+    hazardRisk: 0.004,
+    damageChance: 0.12,
+  },
+
+  charterReward: 500,
 
   supplyCost: 6,
   suppliesMax: 10,
@@ -75,6 +110,8 @@ export const CONFIG = {
     surveyKit: 300,
     stores: [200, 400],
     hold: [250, 500],
+    /** Refit costs for a brig's larger hull. */
+    brigFactor: 1.5,
   },
 } as const;
 

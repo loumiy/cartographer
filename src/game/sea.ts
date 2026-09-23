@@ -9,6 +9,7 @@ import {
   dailyRations,
   daysOfStores,
   distToDock,
+  hurtHull,
   inSailable,
   isKnown,
   knownPorts,
@@ -16,6 +17,7 @@ import {
   landmassLabel,
   log,
   money,
+  postAt,
   provisionCap,
   raise,
   routeTo,
@@ -25,6 +27,20 @@ import {
   withRng,
 } from './core';
 import { arrive, passageCharted, processSeason } from './economy';
+import {
+  buyStoresAtPost,
+  cannotFound,
+  cannotResupply,
+  checkMilestones,
+  collectFromPost,
+  foundPost,
+  postRepairCost,
+  postLabel,
+  postStorePrice,
+  repairAtPost,
+  resupplyPost,
+  seasonsSinceSupplied,
+} from './holdings';
 import { findPath, simplifyPath } from './pathfind';
 import { Cell, type Choice, type Contract, type GameState, type Interrupt } from './types';
 import { cellAt, idx, inBounds, regionOf, remoteness, rowIsCold } from './world';
@@ -106,14 +122,14 @@ function checkProvisionAlerts(state: GameState) {
     }
   }
   const left = daysOfStores(state);
-  if (!v.pointOfNoReturnWarned && v.leftHome && left <= v.homeDays + 3) {
+  if (!v.pointOfNoReturnWarned && v.leftHome && left <= v.havenDays + 3) {
     v.pointOfNoReturnWarned = true;
     alert(
       state,
-      `Point of no return: ${Math.floor(left)} days of stores, and home lies ${v.homeDays} days away. Turn back or find a place to forage.`,
+      `Point of no return: ${Math.floor(left)} days of stores, and the nearest port or post lies ${v.havenDays} days away. Turn back or find a place to forage.`,
       'bad',
     );
-  } else if (v.pointOfNoReturnWarned && left > v.homeDays + 8) {
+  } else if (v.pointOfNoReturnWarned && left > v.havenDays + 8) {
     v.pointOfNoReturnWarned = false;
   }
 }
@@ -178,8 +194,7 @@ function moveShip(state: GameState, dist: number) {
     if (mv >= d - 1e-9) v.waypoints.shift();
 
     if ((cell === Cell.Reef || cell === Cell.Ice) && (cx !== fromCell[0] || cy !== fromCell[1])) {
-      const dmg = withRng(state, (rng) => rng.int(8, 18));
-      ship.hull = Math.max(0, ship.hull - dmg);
+      const dmg = hurtHull(state, withRng(state, (rng) => rng.int(8, 18)));
       alert(state, cell === Cell.Ice ? `We struck drifting ice! The hull takes ${dmg} damage.` : `We scraped over a reef! The hull takes ${dmg} damage.`, 'bad');
       if (checkLost(state)) return;
     }
@@ -315,6 +330,7 @@ function checkFarPort(state: GameState) {
     ],
     data: { port: far.id },
   });
+  checkMilestones(state);
 }
 
 function checkRegionObjective(state: GameState) {
@@ -544,8 +560,7 @@ export function resolve(state: GameState, choiceId: string) {
       if (choiceId === 'run') {
         runBeforeStorm(state);
       } else if (choiceId === 'ride') {
-        const dmg = withRng(state, (rng) => Math.round(rng.int(12, 28) * (warned ? 0.6 : 1) * (0.8 + 0.4 * remoteness(state.world, ship.x, ship.y))));
-        ship.hull = Math.max(0, ship.hull - dmg);
+        const dmg = hurtHull(state, withRng(state, (rng) => Math.round(rng.int(12, 28) * (warned ? 0.6 : 1) * (0.8 + 0.4 * remoteness(state.world, ship.x, ship.y)))));
         log(state, `We rode out the storm. The hull took ${dmg} damage.`, 'bad');
         passDays(state, 1);
       } else if (choiceId === 'shelter') {
@@ -555,8 +570,7 @@ export function resolve(state: GameState, choiceId: string) {
           const last = path[path.length - 1] ?? ship;
           ship.x = last.x;
           ship.y = last.y;
-          const dmg = withRng(state, (rng) => rng.int(0, 4));
-          ship.hull = Math.max(0, ship.hull - dmg);
+          const dmg = hurtHull(state, withRng(state, (rng) => rng.int(0, 4)));
           log(state, `We ran for the lee of the land and sheltered there.${dmg ? ` Minor damage: ${dmg}.` : ''}`, 'info');
           reveal(state);
           passDays(state, Math.max(1, Math.ceil(path.length / CONFIG.speedCoast)));
@@ -634,7 +648,7 @@ function runBeforeStorm(state: GameState) {
     ship.y = ny;
     reveal(state);
   }
-  ship.hull = Math.max(0, ship.hull - dmg);
+  dmg = hurtHull(state, dmg);
   v.waypoints = [];
   log(state, `We ran before the storm and were blown ${n} leagues ${compass(dx, dy)}.${dmg ? ` Hull damage: ${dmg}.` : ''}`, 'info');
   state.paused = true;
@@ -842,6 +856,7 @@ function buildLandfall(state: GameState, result?: string): Interrupt {
   const lf = v.landfall!;
   const lm = state.world.landmasses[lf.landmass];
   const space = cargoCap(state) - cargoUsed(state);
+  const ship = state.ship;
   const choices: Choice[] = [
     {
       id: 'shore',
@@ -861,6 +876,50 @@ function buildLandfall(state: GameState, result?: string): Interrupt {
     choices.unshift({ id: 'deliver', label: `Land the supplies at ${c.post.name}`, hint: 'The contract’s objective', tone: 'safe' });
   }
   for (const site of sitesInReach(state, true)) {
+    const post = postAt(state, site.id);
+    if (post) {
+      const since = seasonsSinceSupplied(state, post);
+      choices.push({
+        id: `collect:${post.id}`,
+        label: `Collect from the ${postLabel(state, post)}`,
+        hint: post.warehouse <= 0 ? 'The warehouse is empty' : space <= 0 ? 'The hold is full' : `${Math.min(space, post.warehouse)} of ${post.warehouse} units`,
+        disabled: post.warehouse <= 0 || space <= 0,
+        tone: 'money',
+      });
+      const resupplyWhy = cannotResupply(state);
+      choices.push({
+        id: `resupply:${post.id}`,
+        label: 'Resupply the post',
+        hint: resupplyWhy ?? `${CONFIG.post.supplyTimber} timber and ${CONFIG.post.supplyStores} crew-days of stores; last supplied ${since ? `${since} season${since > 1 ? 's' : ''} ago` : 'this season'}`,
+        disabled: !!resupplyWhy,
+        tone: since >= CONFIG.post.fullFor ? 'risk' : undefined,
+      });
+      const storesRoom = provisionCap(state) - ship.provisions;
+      choices.push({
+        id: `buystores:${post.id}`,
+        label: 'Buy stores at the post',
+        hint: storesRoom < ship.crew ? 'Stores are full' : `Fill up at ${Math.round(CONFIG.post.markup * 100 - 100)}% over port prices: ${money(storesRoom * postStorePrice())}`,
+        disabled: storesRoom < ship.crew || state.cash < ship.crew * postStorePrice(),
+        tone: 'money',
+      });
+      if (ship.hull < 100) {
+        choices.push({
+          id: `repair:${post.id}`,
+          label: 'Repair at the post',
+          hint: `1 day; ${money(postRepairCost(state))}`,
+          disabled: state.cash < CONFIG.repairCostPerPoint * CONFIG.post.markup,
+          tone: 'money',
+        });
+      }
+      continue;
+    }
+    const why = cannotFound(state, site);
+    choices.push({
+      id: `found:${site.id}`,
+      label: `Found a trading post at the ${CONFIG.resources[site.type].label.toLowerCase()}`,
+      hint: why ?? `${money(CONFIG.post.cost)} and ${CONFIG.post.timber} timber; 1 day. It gathers the site’s cargo each season.`,
+      disabled: !!why,
+    });
     choices.push({
       id: `load:${site.id}`,
       label: `Load ${CONFIG.resources[site.type].label.toLowerCase()}`,
@@ -935,6 +994,35 @@ function landfallAction(state: GameState, choiceId: string) {
       result = `The survey finds ${names.join(' and ')}.`;
     }
     log(state, result, found.length ? 'good' : 'info');
+  } else if (choiceId.startsWith('found:')) {
+    const site = state.world.sites[Number(choiceId.slice(6))];
+    const post = foundPost(state, site);
+    if (post) {
+      passDays(state, 1);
+      if (state.mode !== 'sea') return;
+      result = `We raise a storehouse and a palisade: the ${postLabel(state, post)}. It will gather ${site.maxStock} units a season for us to collect.`;
+    }
+  } else if (choiceId.startsWith('collect:') || choiceId.startsWith('resupply:') || choiceId.startsWith('buystores:') || choiceId.startsWith('repair:')) {
+    const [action, id] = choiceId.split(':');
+    const post = state.posts.find((p) => p.id === Number(id));
+    if (post) {
+      if (action === 'collect') {
+        const qty = collectFromPost(state, post);
+        result = `We load ${qty} units from the post’s warehouse.`;
+        checkResourceObjective(state);
+      } else if (action === 'resupply') {
+        resupplyPost(state, post);
+        result = 'Timber and stores are landed. The post will keep working at full strength.';
+      } else if (action === 'buystores') {
+        buyStoresAtPost(state);
+        result = 'The post sells us what it can spare.';
+      } else {
+        repairAtPost(state);
+        passDays(state, 1);
+        if (state.mode !== 'sea') return;
+        result = 'The post’s carpenters work a day on the hull.';
+      }
+    }
   } else if (choiceId.startsWith('load:')) {
     const site = state.world.sites[Number(choiceId.slice(5))];
     const qty = Math.min(cargoCap(state) - cargoUsed(state), site.stock);

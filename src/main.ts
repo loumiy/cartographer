@@ -161,6 +161,7 @@ function startGame(state: GameState) {
       chart.preview = c?.target ?? null;
     },
     kept: new Set(),
+    routeDraft: null,
   };
 
   const renderTopbar = () => {

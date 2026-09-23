@@ -718,6 +718,29 @@ export class Chart {
       ctx.fillRect(s.x - 3, s.y - 8, 9, 6);
     }
 
+    // Our routes: verdigris, the ink of the known and safe.
+    if (state.routes.length) {
+      ctx.strokeStyle = p.verdigris;
+      ctx.lineWidth = 1.5;
+      for (const r of state.routes) {
+        if (!r.path.length) continue;
+        ctx.beginPath();
+        r.path.forEach((pt, i) => {
+          const s = this.toScreen(pt);
+          if (i === 0) ctx.moveTo(s.x, s.y);
+          else ctx.lineTo(s.x, s.y);
+        });
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+
+    // Trading posts: a small storehouse beside the site; abandoned ones in muted, broken line.
+    for (const post of state.posts) {
+      const site = state.world.sites[post.siteId];
+      drawPost(ctx, this.toScreen({ x: site.x + 0.5, y: site.y + 0.5 }), post.abandoned, p);
+    }
+
     // Resource sites: gilt discs; kept secrets carry a seal ring.
     for (const s of state.world.sites) {
       if (!s.surveyed) continue;
@@ -890,6 +913,33 @@ function drawRose(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
   ctx.beginPath();
   ctx.arc(0, 0, r * 0.12, 0, Math.PI * 2);
   ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** A trading post: an engraved storehouse, set just above its site. */
+function drawPost(ctx: CanvasRenderingContext2D, s: Pt, abandoned: boolean, p: Palette) {
+  ctx.save();
+  ctx.translate(s.x + 9, s.y - 12);
+  ctx.strokeStyle = abandoned ? p.inkMuted : p.ink;
+  ctx.fillStyle = p.vellum;
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'miter';
+  if (abandoned) ctx.setLineDash([2, 2]);
+  ctx.beginPath();
+  ctx.moveTo(-6, 6);
+  ctx.lineTo(-6, -1);
+  ctx.lineTo(0, -6);
+  ctx.lineTo(6, -1);
+  ctx.lineTo(6, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-2, 6);
+  ctx.lineTo(-2, 2);
+  ctx.lineTo(2, 2);
+  ctx.lineTo(2, 6);
   ctx.stroke();
   ctx.restore();
 }

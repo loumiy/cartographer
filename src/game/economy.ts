@@ -5,6 +5,7 @@ import {
   cargoUsed,
   chartPrice,
   compass,
+  crewMax,
   currentPort,
   isSecret,
   landmassLabel,
@@ -19,6 +20,7 @@ import {
 } from './core';
 import { contractElapsed, deliverableQty, gameOver, regionShare, reveal } from './sea';
 import type { ChartItem, Contract, GameState, ResourceType, Voyage, VoyageReport } from './types';
+import { checkMilestones, processHoldings } from './holdings';
 import { findPath } from './pathfind';
 import { driftIce, inRect, isCoast } from './world';
 
@@ -53,6 +55,7 @@ export function processSeason(state: GameState) {
       site.knownBy++;
     }
   }
+  processHoldings(state);
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +108,7 @@ export function setSail(state: GameState) {
     startPort: port.id,
     homePort: port.id,
     homeDays: 0,
+    havenDays: 0,
     homeRoute: [],
     portDays: state.world.ports.map(() => Infinity),
     newSum: { x: 0, y: 0 },
@@ -286,8 +290,9 @@ export function settle(state: GameState) {
   if (state.paymentsDue > 0) {
     payDebt(state, state.paymentsDue);
   }
-  for (const n of state.news) log(state, n, 'bad');
+  for (const n of state.news) log(state, n, 'info');
   state.news = [];
+  checkMilestones(state);
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +358,7 @@ export function payDebt(state: GameState, amount: number) {
 // ---------------------------------------------------------------------------
 
 export function hireCrew(state: GameState, delta: number) {
-  const n = Math.max(CONFIG.crewLostBelow, Math.min(CONFIG.crewMax, state.ship.crew + delta));
+  const n = Math.max(CONFIG.crewLostBelow, Math.min(crewMax(state), state.ship.crew + delta));
   state.ship.crew = n;
 }
 
@@ -408,6 +413,8 @@ export interface UpgradeInfo {
 export function upgradeList(state: GameState): UpgradeInfo[] {
   const u = state.upgrades;
   const U = CONFIG.upgrades;
+  const r = state.ship.refits;
+  const f = state.ship.kind === 'brig' ? U.brigFactor : 1;
   return [
     {
       key: 'spyglass',
@@ -436,18 +443,18 @@ export function upgradeList(state: GameState): UpgradeInfo[] {
     {
       key: 'stores',
       name: 'Enlarged stores',
-      effect: `+${CONFIG.provisionCapPerLevel} crew-days of provision space.`,
-      level: u.stores,
+      effect: `+${CONFIG.provisionCapPerLevel} crew-days of provision space. A refit to this hull: it stays with the ship.`,
+      level: r.stores,
       maxLevel: U.stores.length,
-      cost: u.stores < U.stores.length ? U.stores[u.stores] : null,
+      cost: r.stores < U.stores.length ? Math.round(U.stores[r.stores] * f) : null,
     },
     {
       key: 'hold',
       name: 'Enlarged hold',
-      effect: `+${CONFIG.cargoCapPerLevel} units of cargo space.`,
-      level: u.hold,
+      effect: `+${CONFIG.cargoCapPerLevel} units of cargo space. A refit to this hull: it stays with the ship.`,
+      level: r.hold,
       maxLevel: U.hold.length,
-      cost: u.hold < U.hold.length ? U.hold[u.hold] : null,
+      cost: r.hold < U.hold.length ? Math.round(U.hold[r.hold] * f) : null,
     },
   ];
 }
@@ -460,8 +467,8 @@ export function buyUpgrade(state: GameState, key: UpgradeKey) {
   if (key === 'spyglass') u.spyglass++;
   else if (key === 'barometer') u.barometer = true;
   else if (key === 'surveyKit') u.surveyKit = true;
-  else if (key === 'stores') u.stores++;
-  else u.hold++;
+  else if (key === 'stores') state.ship.refits.stores++;
+  else state.ship.refits.hold++;
   log(state, `Bought: ${info.name}.`, 'info');
 }
 

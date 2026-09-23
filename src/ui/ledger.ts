@@ -3,6 +3,7 @@ import {
   cargoCap,
   cargoUsed,
   chartPrice,
+  crewMax,
   currentPort,
   daysOfStores,
   knownPorts,
@@ -48,10 +49,24 @@ import {
   setRations,
   togglePause,
 } from '../game/sea';
-import type { Contract, GameState } from '../game/types';
+import {
+  MILESTONES,
+  buyShip,
+  cannotCommand,
+  createRoute,
+  endRoute,
+  planRoute,
+  postLabel,
+  seasonsSinceSupplied,
+  stopName,
+  takeCommand,
+  warehouseCap,
+} from '../game/holdings';
+import type { Contract, GameState, RouteStop } from '../game/types';
+
 import { button, h } from './dom';
 
-export type PortTab = 'contracts' | 'outfit' | 'shipwright' | 'admiralty' | 'financier';
+export type PortTab = 'contracts' | 'outfit' | 'shipwright' | 'admiralty' | 'holdings' | 'financier';
 
 export interface UiContext {
   state: GameState;
@@ -64,6 +79,8 @@ export interface UiContext {
   preview: (c: Contract | null) => void;
   /** Items the player chose to keep this visit, for the "Kept secret" note. */
   kept: Set<number>;
+  /** A route being drawn up in the Holdings tab. */
+  routeDraft: { vesselId: number; stops: RouteStop[] } | null;
 }
 
 export const SPEEDS = [
@@ -184,16 +201,16 @@ function seaLedger(ctx: UiContext): HTMLElement {
         value: `${Math.floor(left)} days`,
         share: left / Math.max(1, provisionCap(state) / Math.max(1, ship.crew)),
         marks: [
-          { at: v.homeDays / Math.max(1, provisionCap(state) / Math.max(1, ship.crew)), kind: 'risk' },
+          { at: v.havenDays / Math.max(1, provisionCap(state) / Math.max(1, ship.crew)), kind: 'risk' },
           { at: v.startProvisions / 2 / ship.crew / Math.max(1, provisionCap(state) / Math.max(1, ship.crew)), kind: 'muted' },
         ],
         caption:
-          left <= v.homeDays
-            ? 'Past the point of no return: stores run out before home. Find land and forage.'
-            : left <= v.homeDays + 3
-              ? `Provisions reach the point of no return in ${Math.max(0, Math.floor(left - v.homeDays))} days.`
+          left <= v.havenDays
+            ? 'Past the point of no return: stores run out before any port or post. Find land and forage.'
+            : left <= v.havenDays + 3
+              ? `Provisions reach the point of no return in ${Math.max(0, Math.floor(left - v.havenDays))} days.`
               : `${state.world.ports[v.homePort].name} is ${Number.isFinite(v.homeDays) ? v.homeDays : '?'} days away. ${ship.rations === 'short' ? 'Short rations.' : ''}`,
-        warn: left <= v.homeDays + 3,
+        warn: left <= v.havenDays + 3,
       }),
       gauge({
         label: 'Hull',
@@ -252,6 +269,7 @@ function stats(state: GameState) {
   const ship = state.ship;
   const v = state.voyage;
   const rows: [string, string][] = [
+    ['Ship', `${ship.name}, ${CONFIG.ships[ship.kind].label.toLowerCase()}`],
     ['Crew', `${ship.crew} hands`],
     ['Cargo', `${cargoUsed(state)} of ${cargoCap(state)} units`],
   ];
@@ -262,7 +280,7 @@ function stats(state: GameState) {
     const next = seasonOf(state.day).nextSeasonDay;
     rows.push(['Next payment', `${money(Math.min(state.paymentPerSeason, state.debt))} in ${next - state.day} days`]);
   } else {
-    rows.push(['Ship', 'Owned outright']);
+    rows.push(['Bond', 'Paid off']);
   }
   return h(
     'dl',
@@ -302,6 +320,7 @@ const TABS: [PortTab, string][] = [
   ['outfit', 'Outfit'],
   ['shipwright', 'Shipwright'],
   ['admiralty', 'Admiralty'],
+  ['holdings', 'Holdings'],
   ['financier', 'Financier'],
 ];
 
@@ -312,6 +331,7 @@ function portLedger(ctx: UiContext): HTMLElement {
     outfit: outfitTab,
     shipwright: shipwrightTab,
     admiralty: admiraltyTab,
+    holdings: holdingsTab,
     financier: financierTab,
   }[ctx.tab](ctx);
   const why = canSail(state);
@@ -443,9 +463,9 @@ function outfitTab(ctx: UiContext) {
     null,
     row(
       `Crew: ${ship.crew} hands`,
-      `${CONFIG.crewMin}–${CONFIG.crewMax}. Fewer than 10 sail slower. Each costs ${money(CONFIG.wageAdvance)} on signing, and wages of ${money(CONFIG.wagePerDay * 10)} per 10 days on return.`,
+      `${CONFIG.crewMin}–${crewMax(state)}. Fewer than 10 sail slower. Each costs ${money(CONFIG.wageAdvance)} on signing, and wages of ${money(CONFIG.wagePerDay * 10)} per 10 days on return.`,
       button('−1', () => act((s) => hireCrew(s, -1)), { kind: 'quiet', disabled: ship.crew <= CONFIG.crewMin ? 'Minimum crew' : false }),
-      button('+1', () => act((s) => hireCrew(s, 1)), { disabled: ship.crew >= CONFIG.crewMax ? 'The ship holds no more' : false }),
+      button('+1', () => act((s) => hireCrew(s, 1)), { disabled: ship.crew >= crewMax(state) ? 'The ship holds no more' : false }),
     ),
     row(
       `Provisions: ${days} days`,
@@ -473,7 +493,7 @@ function shipwrightTab(ctx: UiContext) {
   return h(
     'div',
     null,
-    h('p', { class: 'caption muted' }, 'Instruments and refits stay with the ship for good.'),
+    h('p', { class: 'caption muted' }, `Fitting out the ${state.ship.name}, a ${CONFIG.ships[state.ship.kind].label.toLowerCase()}. Instruments go with the captain from ship to ship; refits stay with the hull.`),
     ...upgradeList(state).map((u) =>
       row(
         `${u.name}${u.maxLevel > 1 ? ` (${u.level} of ${u.maxLevel})` : u.level ? ' (fitted)' : ''}`,
@@ -484,6 +504,181 @@ function shipwrightTab(ctx: UiContext) {
       ),
     ),
     h('p', { class: 'caption muted' }, `Sight: ${CONFIG.baseSight + state.upgrades.spyglass} leagues · stores ${provisionCap(state)} crew-days · hold ${cargoCap(state)} units.`),
+    h('h3', { class: 'label section' }, 'Ships for sale'),
+    row(
+      'A brig',
+      `A larger hull: ${CONFIG.ships.brig.hold} units of hold, ${CONFIG.ships.brig.stores} crew-days of stores, up to ${CONFIG.ships.brig.crewMax} crew, and storms and reefs hurt her less. Lies here until you take command or put her on a route.`,
+      button(`Buy · ${money(CONFIG.ships.brig.cost)}`, () => act((s) => buyShip(s, 'brig')), { disabled: state.cash < CONFIG.ships.brig.cost ? 'Not enough money' : false }),
+    ),
+    row(
+      'A pinnace',
+      `A small, cheap hull like our first: ${CONFIG.ships.pinnace.hold} units of hold. Enough to work a short route.`,
+      button(`Buy · ${money(CONFIG.ships.pinnace.cost)}`, () => act((s) => buyShip(s, 'pinnace')), { disabled: state.cash < CONFIG.ships.pinnace.cost ? 'Not enough money' : false }),
+    ),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Holdings: posts, ships, routes, milestones
+// ---------------------------------------------------------------------------
+
+function holdingsTab(ctx: UiContext) {
+  const { state, act } = ctx;
+  const draft = ctx.routeDraft;
+  const posts = state.posts;
+  const here = state.portId;
+  return h(
+    'div',
+    null,
+    h('p', { class: 'caption muted' }, 'Trading posts gather cargo each season; ships on routes earn without us. Each season’s results are told when we reach port.'),
+
+    h('h3', { class: 'label' }, 'Trading posts'),
+    posts.length
+      ? h(
+          'div',
+          { class: 'chart-case' },
+          ...posts.map((p) => {
+            const since = seasonsSinceSupplied(state, p);
+            const onRoute = state.routes.some((r) => r.stops.some((st) => st.kind === 'post' && st.id === p.id));
+            const status = p.abandoned
+              ? 'Abandoned'
+              : onRoute
+                ? 'Supplied by its route ship'
+                : since < CONFIG.post.fullFor
+                  ? `Supplied ${since ? `${since} season${since > 1 ? 's' : ''} ago` : 'this season'}: full output`
+                  : since < CONFIG.post.halfFor
+                    ? 'Short of supplies: half output'
+                    : 'About to be abandoned';
+            return h(
+              'div',
+              { class: 'ledger-row' },
+              h(
+                'div',
+                null,
+                h('div', { class: 'label' }, postLabel(state, p)),
+                h('div', { class: `caption ${p.abandoned || (!onRoute && since >= CONFIG.post.fullFor) ? 'risk' : 'muted'}` }, status),
+              ),
+              h('div', { class: 'caption money' }, p.abandoned ? '' : `${p.warehouse} / ${warehouseCap(state, p)} units`),
+            );
+          }),
+        )
+      : h('p', { class: 'caption muted' }, `No posts yet. Found one during landfall at a surveyed site: ${money(CONFIG.post.cost)} and ${CONFIG.post.timber} timber.`),
+
+    h('h3', { class: 'label section' }, 'Ships'),
+    row(`${state.ship.name} (${CONFIG.ships[state.ship.kind].label})`, `Under our command · hull ${Math.round(state.ship.hull)}%`),
+    ...state.fleet.map((v) => {
+      const route = state.routes.find((r) => r.id === v.routeId);
+      const where = route ? `On a route: ${route.stops.map((st) => stopName(state, st)).join(' → ')}` : `Lies at ${state.world.ports[v.portId].name}`;
+      const why = cannotCommand(state, v);
+      return row(
+        `${v.name} (${CONFIG.ships[v.kind].label})`,
+        `${where} · hull ${Math.round(v.hull)}%`,
+        route ? null : button('Take command', () => act((s) => takeCommand(s, v.id)), { disabled: why ?? false }),
+        route || v.portId !== here
+          ? null
+          : button('Put on a route', () => {
+              ctx.routeDraft = { vesselId: v.id, stops: [{ kind: 'port', id: here }] };
+              act(() => {});
+            }),
+      );
+    }),
+    state.fleet.length ? null : h('p', { class: 'caption muted' }, 'Buy a second ship at the shipwright to put her on a route.'),
+    draft ? routeBuilder(ctx, draft) : null,
+
+    h('h3', { class: 'label section' }, 'Routes'),
+    state.routes.length
+      ? h(
+          'div',
+          { class: 'chart-case' },
+          ...state.routes.map((r) => {
+            const v = state.fleet.find((f) => f.id === r.vesselId);
+            return h(
+              'div',
+              { class: 'ledger-row' },
+              h(
+                'div',
+                null,
+                h('div', { class: 'label' }, r.stops.map((st) => stopName(state, st)).join(' → ')),
+                h(
+                  'div',
+                  { class: 'caption muted' },
+                  `${v?.name ?? 'No ship'} · ${r.length} leagues round · ${Math.round(r.risk * 100)}% a season she is lost · last season: `,
+                  h('span', { class: r.lastIncome >= 0 ? 'money' : 'risk' }, r.lastNote === 'Not yet sailed' ? r.lastNote : money(r.lastIncome)),
+                ),
+              ),
+              button('End route', () => act((s) => endRoute(s, r.id)), { kind: 'quiet' }),
+            );
+          }),
+        )
+      : h('p', { class: 'caption muted' }, 'No routes yet.'),
+
+    h('h3', { class: 'label section' }, 'Milestones'),
+    h(
+      'ul',
+      { class: 'milestones' },
+      ...MILESTONES.map((m) =>
+        h('li', { class: `caption ${state.milestones.includes(m.id) ? 'safe' : 'muted'}` }, `${state.milestones.includes(m.id) ? '✓ ' : '○ '}${m.title}`),
+      ),
+    ),
+  );
+}
+
+/** Pick stops in order; the route runs through them and back to the first. */
+function routeBuilder(ctx: UiContext, draft: { vesselId: number; stops: RouteStop[] }) {
+  const { state, act } = ctx;
+  const v = state.fleet.find((f) => f.id === draft.vesselId);
+  if (!v) return null;
+  const candidates: RouteStop[] = [
+    ...knownPorts(state).map((p) => ({ kind: 'port' as const, id: p.id })),
+    ...state.posts.filter((p) => !p.abandoned).map((p) => ({ kind: 'post' as const, id: p.id })),
+  ];
+  const has = (st: RouteStop) => draft.stops.some((d) => d.kind === st.kind && d.id === st.id);
+  const plan = planRoute(state, draft.stops);
+  const refresh = () => act(() => {});
+  return h(
+    'div',
+    { class: 'contract accepted' },
+    h('p', { class: 'label' }, `A route for the ${v.name}`),
+    h('p', { class: 'caption muted' }, 'Choose stops in the order she will call. She sails the round each season and back to the first stop. Every leg must run over charted water.'),
+    h(
+      'div',
+      { class: 'row wrap' },
+      ...candidates.map((st) =>
+        button(stopName(state, st), () => {
+          draft.stops = has(st) ? draft.stops.filter((d) => !(d.kind === st.kind && d.id === st.id)) : [...draft.stops, st];
+          refresh();
+        }, { kind: has(st) ? 'primary' : 'secondary' }),
+      ),
+    ),
+    h('p', { class: 'caption' }, draft.stops.length ? draft.stops.map((st) => stopName(state, st)).join(' → ') + ' → back' : 'No stops chosen.'),
+    typeof plan === 'string'
+      ? h('p', { class: 'caption risk' }, plan)
+      : h(
+          'p',
+          { class: 'caption' },
+          `${plan.length} leagues round · `,
+          h('span', { class: 'risk' }, `${Math.round(plan.risk * 100)}% a season she is lost`),
+          ' · about ',
+          h('span', { class: 'money' }, money(plan.estimate)),
+          ' a season after costs',
+        ),
+    h(
+      'div',
+      { class: 'row' },
+      button(
+        'Start the route',
+        () =>
+          act((s) => {
+            const r = createRoute(s, draft.vesselId, draft.stops);
+            if (typeof r !== 'string') ctx.routeDraft = null;
+          }),
+        { kind: 'primary', disabled: typeof plan === 'string' ? plan : false },
+      ),
+      button('Cancel', () => {
+        ctx.routeDraft = null;
+        refresh();
+      }, { kind: 'quiet' }),
+    ),
   );
 }
 

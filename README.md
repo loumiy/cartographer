@@ -2,7 +2,7 @@
 
 An Age-of-Exploration voyage game. You captain one ship into an uncharted, fog-covered sea, chart what you find, and decide whether to sell your charts or keep them secret. Pay off the ship's debt to own her outright, then sail on as long as you like.
 
-This is V1, built from [`docs/design-doc.md`](docs/design-doc.md) and styled per [`docs/style-guide/`](docs/style-guide/README.md).
+Built from [`docs/design-doc.md`](docs/design-doc.md) (V1) and [`docs/chapter-2-design.md`](docs/chapter-2-design.md) (chapter 2: the far shore), and styled per [`docs/style-guide/`](docs/style-guide/README.md).
 
 ## Running it
 
@@ -24,6 +24,17 @@ Add `?seed=anything` to the URL to sail a specific sea. The same seed always mak
 - **Home**, sell each chart to the Admiralty or keep a resource site secret. Secrets pay full cargo price until someone else finds them.
 - Each season (60 days at sea) the financier wants £200, collected when you reach port. Pay off £2,500 and the ship is yours: payments stop and the game carries on. Missing a payment, or losing the ship, ends the game.
 
+### Chapter 2: the far shore
+
+- A second port lies hidden in the north-east or south-east corner of the first sea, on a continent along the world's edge. Nothing tells you which corner. Until you sight it the ship can't leave the first sea; once you do, the world grows to four seas: east, and away from the port's edge. The crossing is long (45–55 days with a perfect chart), so plan for enlarged stores, a foraging stop or short rations.
+- The new seas have their own character: a cold sea with drifting ice or a warm, stormy one, and richer seas to the east.
+- Voyages end at either port. Each port has its own cargo prices, and each Admiralty pays more for charts of waters near the other port. A chart sells once, and is then public at both.
+- Every contract says where it ends: back where it was signed, or one way to the other port. New one-way work: carrying despatches, charting a clear passage between the ports, and supplying a patron's post.
+- **Trading posts**: at a surveyed site, found a post for £400 and 15 timber. It gathers the site's cargo each season, sells stores and repairs at a markup, and counts as a haven for the point of no return. Supply it every few seasons or its output falls and it's abandoned. A post makes a secret site likelier to be found.
+- **Ships and routes**: buy a brig (bigger hold and stores, a tougher hull) or another pinnace. Command either ship; put the other on a route of ports and posts over charted water. Routes earn each season on their own, keep their posts supplied, and carry a small risk of losing the ship.
+- The **Holdings** tab lists posts, ships, routes and milestones. There is no ending: milestones run up to a Crown charter for a trading company.
+- Drag to pan the chart, scroll or pinch to zoom, and use the rose button to centre on the ship.
+
 Keys: <kbd>Space</kbd> sail/heave to, <kbd>1</kbd>–<kbd>3</kbd> time speed, <kbd>H</kbd> turn for home, <kbd>Backspace</kbd> remove last waypoint, <kbd>1</kbd>–<kbd>9</kbd> pick a choice on an event card.
 
 ## Answers to the design doc's open questions
@@ -39,6 +50,6 @@ Keys: <kbd>Space</kbd> sail/heave to, <kbd>1</kbd>–<kbd>3</kbd> time speed, <k
 
 ## Code map
 
-- `src/game/`: all rules, no DOM. `config.ts` holds every tuning number; `world.ts` generates the sea; `sea.ts` runs voyages, events and landfall; `economy.ts` handles port, contracts, selling, seasons and debt; `state.ts` creates and saves games.
-- `src/ui/`: `chart.ts` draws the canvas chart; `ledger.ts` is the sidebar; `card.ts` is the event card.
-- `tests/`: world generation, economy, voyages, and a bot that plays several voyages end to end.
+- `src/game/`: all rules, no DOM. `config.ts` holds every tuning number; `world.ts` generates the four seas; `sea.ts` runs voyages, events and landfall; `economy.ts` handles ports, contracts, selling, seasons and debt; `holdings.ts` handles posts, ships, routes and milestones; `state.ts` creates, saves and migrates games (V1 saves are redrawn onto the larger world).
+- `src/ui/`: `chart.ts` draws the canvas chart with pan and zoom; `ledger.ts` is the sidebar; `card.ts` is the event card.
+- `tests/`: world generation, economy, voyages, the far shore, holdings, and bots that play many voyages end to end.

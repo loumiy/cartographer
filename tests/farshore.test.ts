@@ -95,7 +95,8 @@ describe('the far shore', () => {
       cash: 777,
     };
     const t = deserialize(serialize(v1 as never))!;
-    expect(t.version).toBe(2);
+    expect(t.version).toBe(3);
+    expect(t.ship.refits).toBeDefined();
     expect(t.cash).toBe(777);
     expect(t.known[idx(t.world, 30, 42 + oy)]).toBe(1);
     const moved = t.world.sites[site.id];
@@ -110,6 +111,7 @@ describe('contracts between ports', () => {
     const s = newGame(seed);
     s.world.ports[1].known = true;
     s.expanded = true;
+    s.milestones.push('far_shore');
     return s;
   }
 

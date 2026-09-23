@@ -2,7 +2,7 @@ import { Rng } from '../rng';
 import { CONFIG } from './config';
 import { findPath } from './pathfind';
 import { cellAt, idx, inBounds, inRect, remoteness } from './world';
-import { Cell, type ChartItem, type GameState, type Interrupt, type Port, type Rect, type Site } from './types';
+import { Cell, type ChartItem, type GameState, type Interrupt, type Port, type Post, type Rect, type Site } from './types';
 
 /** Run `fn` with the game's saved RNG and store its advanced state back. */
 export function withRng<T>(state: GameState, fn: (rng: Rng) => T): T {
@@ -36,11 +36,47 @@ export function sightRadius(state: GameState): number {
 }
 
 export function provisionCap(state: GameState): number {
-  return CONFIG.provisionCapBase + CONFIG.provisionCapPerLevel * state.upgrades.stores;
+  return CONFIG.ships[state.ship.kind].stores + CONFIG.provisionCapPerLevel * state.ship.refits.stores;
 }
 
 export function cargoCap(state: GameState): number {
-  return CONFIG.cargoCapBase + CONFIG.cargoCapPerLevel * state.upgrades.hold;
+  return CONFIG.ships[state.ship.kind].hold + CONFIG.cargoCapPerLevel * state.ship.refits.hold;
+}
+
+export function crewMax(state: GameState): number {
+  return CONFIG.ships[state.ship.kind].crewMax;
+}
+
+/** Take hull damage, softened by a stronger hull. Returns the damage actually taken. */
+export function hurtHull(state: GameState, dmg: number): number {
+  const taken = Math.round(dmg * CONFIG.ships[state.ship.kind].toughness);
+  state.ship.hull = Math.max(0, state.ship.hull - taken);
+  return taken;
+}
+
+/** The active (not abandoned) post at a site, if any. */
+export function postAt(state: GameState, siteId: number): Post | undefined {
+  return state.posts.find((p) => p.siteId === siteId && !p.abandoned);
+}
+
+/** A known sea cell beside a post's site, where a ship lies to reach it. */
+export function postAnchor(state: GameState, post: Post): { x: number; y: number } | null {
+  const site = state.world.sites[post.siteId];
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (let dy = -3; dy <= 3; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const x = site.x + dx;
+      const y = site.y + dy;
+      if (!isKnown(state, x, y) || cellAt(state.world, x, y) !== Cell.Sea) continue;
+      const d = Math.hypot(dx, dy);
+      if (d < bestD) {
+        bestD = d;
+        best = { x: x + 0.5, y: y + 0.5 };
+      }
+    }
+  }
+  return best;
 }
 
 export function cargoUsed(state: GameState): number {
@@ -140,7 +176,10 @@ export function routeTo(state: GameState, to: { x: number; y: number }): { path:
   return { path, days: Math.ceil(days) };
 }
 
-/** Re-plan the routes to each known port over charted water; the nearest one is "home" for the point of no return. */
+/**
+ * Re-plan the routes to each known port over charted water. The nearest port is "home" for the
+ * Turn-for-home order; the nearest haven, port or trading post, sets the point of no return.
+ */
 export function updateHomeEstimate(state: GameState) {
   const v = state.voyage;
   if (!v) return;
@@ -156,6 +195,16 @@ export function updateHomeEstimate(state: GameState) {
       v.homeRoute = r.path;
       v.homePort = port.id;
     }
+  }
+  v.havenDays = v.homeDays;
+  for (const post of state.posts) {
+    if (post.abandoned) continue;
+    const site = state.world.sites[post.siteId];
+    // Only posts that could be nearer than the nearest port are worth routing to.
+    if (Math.hypot(site.x - state.ship.x, site.y - state.ship.y) / CONFIG.speedOpen >= v.havenDays) continue;
+    const at = postAnchor(state, post);
+    const r = at && routeTo(state, at);
+    if (r && r.days < v.havenDays) v.havenDays = r.days;
   }
 }
 
@@ -188,7 +237,9 @@ export function siteSaleValue(site: Site): number {
 
 /** Per-season chance that someone else finds a kept secret: higher for rich sites and sites near home. */
 export function secretRisk(state: GameState, site: Site): number {
-  return 0.05 + 0.12 * site.richness + 0.08 * (1 - remoteness(state.world, site.x, site.y));
+  // A post is seen by every passing ship: it doubles the risk.
+  const post = postAt(state, site.id) ? 2 : 1;
+  return post * (0.05 + 0.12 * site.richness + 0.08 * (1 - remoteness(state.world, site.x, site.y)));
 }
 
 export function isSecret(site: Site): boolean {

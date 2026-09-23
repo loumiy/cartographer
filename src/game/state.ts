@@ -1,11 +1,12 @@
-import { hashSeed } from '../rng';
+import { Rng, hashSeed } from '../rng';
 import { CONFIG } from './config';
 import { log } from './core';
 import { generateContracts } from './economy';
+import { shipName } from './names';
 import type { GameState } from './types';
 import { generateWorld, idx } from './world';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export function newGame(seed: string): GameState {
   const world = generateWorld(seed);
@@ -35,6 +36,9 @@ export function newGame(seed: string): GameState {
     reputation: 0,
     contractsDone: 0,
     ship: {
+      name: shipName(new Rng(hashSeed(`${seed}:ship`)), []),
+      kind: 'pinnace',
+      refits: { stores: 0, hold: 0 },
       x: home.dock.x + 0.5,
       y: home.dock.y + 0.5,
       crew: CONFIG.crewStart,
@@ -44,7 +48,7 @@ export function newGame(seed: string): GameState {
       cargo: [],
       rations: 'full',
     },
-    upgrades: { spyglass: 0, barometer: false, surveyKit: false, stores: 0, hold: 0 },
+    upgrades: { spyglass: 0, barometer: false, surveyKit: false },
     contracts: [],
     nextId: 1,
     chartCase: [],
@@ -56,6 +60,10 @@ export function newGame(seed: string): GameState {
     alert: null,
     pending: [],
     accepted: null,
+    posts: [],
+    fleet: [],
+    routes: [],
+    milestones: [],
     report: null,
     news: [],
     log: [],
@@ -90,6 +98,7 @@ export function deserialize(text: string): GameState | null {
       return value;
     }) as GameState;
     if ((state.version as number) === 1) return migrateV1(state as unknown as V1State);
+    if ((state.version as number) === 2) return migrateV2(state);
     if (state.version !== SAVE_VERSION) return null;
     return state;
   } catch {
@@ -155,20 +164,25 @@ function migrateV1(old: V1State): GameState | null {
   }
 
   const o = old as unknown as GameState;
-  for (const key of ['day', 'cash', 'debt', 'debtStart', 'paymentPerSeason', 'paymentsDue', 'reputation', 'contractsDone', 'upgrades', 'voyagesSailed', 'news', 'rng', 'nextId'] as const) {
+  for (const key of ['day', 'cash', 'debt', 'debtStart', 'paymentPerSeason', 'paymentsDue', 'reputation', 'contractsDone', 'voyagesSailed', 'news', 'rng', 'nextId'] as const) {
     (s as unknown as Record<string, unknown>)[key] = o[key];
   }
+  const oldUpgrades = o.upgrades as unknown as { spyglass: number; barometer: boolean; surveyKit: boolean; stores: number; hold: number };
   s.log = o.log.slice();
   s.stats = { ...o.stats, cellsCharted: s.known.reduce((a, b) => a + b, 0) };
   const ship = o.ship;
   const home = world.ports[0];
   s.ship = {
     ...ship,
+    name: s.ship.name,
+    kind: 'pinnace',
+    refits: { stores: oldUpgrades.stores ?? 0, hold: oldUpgrades.hold ?? 0 },
     x: home.dock.x + 0.5,
     y: home.dock.y + 0.5,
     rations: 'full',
     cargo: ship.cargo.filter((l) => siteMap.has(l.siteId)).map((l) => ({ ...l, siteId: siteMap.get(l.siteId)! })),
   };
+  s.upgrades = { spyglass: oldUpgrades.spyglass, barometer: oldUpgrades.barometer, surveyKit: oldUpgrades.surveyKit };
   s.chartCase = [];
   for (const item of o.chartCase) {
     if (item.kind === 'area') s.chartCase.push({ ...item, x: 60, y: oy + 42 });
@@ -192,4 +206,24 @@ function migrateV1(old: V1State): GameState | null {
     },
   ];
   return s;
+}
+
+/** Stage-one chapter 2 saves: refits move from the captain's upgrades onto the ship; holdings start empty. */
+function migrateV2(state: GameState): GameState {
+  const u = state.upgrades as unknown as { spyglass: number; barometer: boolean; surveyKit: boolean; stores?: number; hold?: number };
+  const ship = state.ship as GameState['ship'] & Partial<Pick<GameState['ship'], 'name' | 'kind' | 'refits'>>;
+  state.ship = {
+    ...ship,
+    name: ship.name ?? shipName(new Rng(hashSeed(`${state.world.seed}:ship`)), []),
+    kind: ship.kind ?? 'pinnace',
+    refits: ship.refits ?? { stores: u.stores ?? 0, hold: u.hold ?? 0 },
+  };
+  state.upgrades = { spyglass: u.spyglass, barometer: u.barometer, surveyKit: u.surveyKit };
+  state.posts ??= [];
+  state.fleet ??= [];
+  state.routes ??= [];
+  state.milestones ??= state.expanded ? ['far_shore'] : [];
+  if (state.voyage && state.voyage.havenDays === undefined) state.voyage.havenDays = state.voyage.homeDays;
+  state.version = SAVE_VERSION;
+  return state;
 }
