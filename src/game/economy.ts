@@ -443,7 +443,7 @@ export function upgradeList(state: GameState): UpgradeInfo[] {
     {
       key: 'stores',
       name: 'Enlarged stores',
-      effect: `+${CONFIG.provisionCapPerLevel} crew-days of provision space. A refit to this hull: it stays with the ship.`,
+      effect: `${r.stores < U.stores.length ? `+${CONFIG.storesLevels[r.stores]} crew-days of provision space (${Math.round(CONFIG.storesLevels[r.stores] / Math.max(1, state.ship.crew))} days at this crew)` : 'Fully enlarged'}. A refit to this hull: it stays with the ship.`,
       level: r.stores,
       maxLevel: U.stores.length,
       cost: r.stores < U.stores.length ? Math.round(U.stores[r.stores] * f) : null,
@@ -451,7 +451,7 @@ export function upgradeList(state: GameState): UpgradeInfo[] {
     {
       key: 'hold',
       name: 'Enlarged hold',
-      effect: `+${CONFIG.cargoCapPerLevel} units of cargo space. A refit to this hull: it stays with the ship.`,
+      effect: `${r.hold < U.hold.length ? `+${CONFIG.holdLevels[r.hold]} units of cargo space` : 'Fully enlarged'}. A refit to this hull: it stays with the ship.`,
       level: r.hold,
       maxLevel: U.hold.length,
       cost: r.hold < U.hold.length ? Math.round(U.hold[r.hold] * f) : null,

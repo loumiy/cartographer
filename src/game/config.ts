@@ -31,10 +31,22 @@ export const CONFIG = {
   wagePerDay: 0.1,
 
   provisionCost: 0.1,
-  provisionCapPerLevel: 200,
+  /**
+   * Enlarged-stores refits, crew-days added per level. Fully refitted, a pinnace carries 1,100
+   * crew-days: 92 days at 12 crew, half again what perfect island hopping needs to reach the
+   * farthest corner of the first sea on any seed tested (tests/range.test.ts).
+   */
+  storesLevels: [150, 200, 250],
   shortRations: 0.6,
 
-  cargoCapPerLevel: 8,
+  /**
+   * A shore party brings back crew × (7–13 days) × the land's forage quality × its size factor,
+   * in crew-days. Land that has been foraged recovers over a season.
+   */
+  forageBySize: { islet: 0.6, island: 1, 'large island': 1.3, coast: 1.5 } as Record<string, number>,
+
+  /** Enlarged-hold refits, cargo units added per level. */
+  holdLevels: [8, 8, 8],
 
   /** Hulls. A brig carries more and takes storm and reef damage less hard. */
   ships: {
@@ -108,8 +120,8 @@ export const CONFIG = {
     spyglass: [180, 400, 800],
     barometer: 250,
     surveyKit: 300,
-    stores: [200, 400],
-    hold: [250, 500],
+    stores: [150, 350, 700],
+    hold: [200, 400, 700],
     /** Refit costs for a brig's larger hull. */
     brigFactor: 1.5,
   },

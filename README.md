@@ -20,13 +20,14 @@ Add `?seed=anything` to the URL to sail a specific sea. The same seed always mak
 
 - **In port**, sign a contract or sail freelance, then outfit: crew, provisions, repair supplies, hull repairs, instruments.
 - **At sea**, click the chart to drop waypoints (right-click removes the last). Time runs day by day and stops whenever something needs a decision: land sighted, signs of land, storms, sickness, provisions at half and a quarter, the point of no return, reefs ahead, contract objectives.
-- **Landfall**: send a shore party for stores, survey the coast for timber, furs, spice or pearls, load cargo, and name what you found.
+- **Landfall**: send a shore party for stores, survey the coast for timber, furs, spice or pearls, load cargo, and name what you found. Bigger land feeds a shore party better, and land that has just been foraged needs a season to recover, so long voyages are made by **island hopping**: plan a chain of landfalls and refill at each.
+- **Range**: a new pinnace carries about 41 days of stores for 12 crew. Three enlarged-stores refits (£150, £350, £700) take her to 92 days: enough, with island hopping, to reach every corner of the first sea and come back.
 - **Home**, sell each chart to the Admiralty or keep a resource site secret. Secrets pay full cargo price until someone else finds them.
 - Each season (60 days at sea) the financier wants £200, collected when you reach port. Pay off £2,500 and the ship is yours: payments stop and the game carries on. Missing a payment, or losing the ship, ends the game.
 
 ### Chapter 2: the far shore
 
-- A second port lies hidden in the north-east or south-east corner of the first sea, on a continent along the world's edge. Nothing tells you which corner. Until you sight it the ship can't leave the first sea; once you do, the world grows to four seas: east, and away from the port's edge. The crossing is long (45–55 days with a perfect chart), so plan for enlarged stores, a foraging stop or short rations.
+- A second port lies hidden in the north-east or south-east corner of the first sea, on a continent along the world's edge. Nothing tells you which corner. Until you sight it the ship can't leave the first sea; once you do, the world grows to four seas: east, and away from the port's edge. The crossing is long (45–55 days with a perfect chart), so plan for enlarged stores and island hopping.
 - The new seas have their own character: a cold sea with drifting ice or a warm, stormy one, and richer seas to the east.
 - Voyages end at either port. Each port has its own cargo prices, and each Admiralty pays more for charts of waters near the other port. A chart sells once, and is then public at both.
 - Every contract says where it ends: back where it was signed, or one way to the other port. New one-way work: carrying despatches, charting a clear passage between the ports, and supplying a patron's post.

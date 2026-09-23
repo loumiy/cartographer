@@ -469,7 +469,7 @@ function outfitTab(ctx: UiContext) {
     ),
     row(
       `Provisions: ${days} days`,
-      `Room for ${capDays} days at this crew. 10 days cost ${money(cost10)}.`,
+      `Room for ${capDays} days at this crew. 10 days cost ${money(cost10)}. Loaded, the stores reach about ${Math.round((days * CONFIG.speedOpen) / 2)} leagues out and back in open water; forage on the way to go farther.`,
       button('−10', () => act((s) => sellProvisions(s, perDay * 10)), { kind: 'quiet', disabled: days < 10 ? 'Nothing to sell' : false, title: 'Sell back at half price' }),
       button('+10', () => act((s) => buyProvisions(s, perDay * 10)), { disabled: days >= capDays ? 'Stores are full' : state.cash < cost10 ? 'Not enough money' : false }),
       button('Fill', () => act((s) => buyProvisions(s, provisionCap(s))), { disabled: days >= capDays ? 'Stores are full' : false }),

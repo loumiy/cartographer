@@ -28,6 +28,8 @@ export interface Landmass {
   discovered: boolean;
   /** The far port's continent. */
   farShore?: boolean;
+  /** Day a shore party last foraged here; the land recovers over a season. */
+  lastForaged?: number;
 }
 
 export interface Site {

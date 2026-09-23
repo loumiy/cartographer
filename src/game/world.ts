@@ -142,6 +142,7 @@ export function generateWorld(seed: string): World {
   cells[town.y * width + town.x] = Cell.Land;
   connectWithinFirstSea(cells, width, firstSea, dock, farDock);
   fillLakes(cells, width, height, dock);
+  joinFirstSeaPockets(cells, width, firstSea, dock);
 
   const { landmassOf, sizes } = labelLandmasses(cells, width, height);
   // Drop specks of one or two cells: too small to find or name.
@@ -209,6 +210,55 @@ export function generateWorld(seed: string): World {
   placeSites(world, rng);
   placeWrecks(world, rng);
   return world;
+}
+
+/**
+ * Water in the first sea that connects to home only through the seas beyond would be out of
+ * reach until the far port is found. Small pockets become land; larger ones get a strait cut.
+ */
+function joinFirstSeaPockets(cells: Uint8Array, width: number, sea: Rect, home: { x: number; y: number }) {
+  for (let pass = 0; pass < 20; pass++) {
+    const seen = new Uint8Array(cells.length);
+    const flood = (start: number, mark: number[]) => {
+      const stack = [start];
+      seen[start] = 1;
+      while (stack.length) {
+        const i = stack.pop()!;
+        mark.push(i);
+        const x = i % width;
+        const y = Math.floor(i / width);
+        for (const [dx, dy] of DIRS4) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (!inRect(sea, nx, ny)) continue;
+          const j = ny * width + nx;
+          if (!seen[j] && cells[j] !== Cell.Land) {
+            seen[j] = 1;
+            stack.push(j);
+          }
+        }
+      }
+    };
+    flood(home.y * width + home.x, []);
+    let pocket: number[] | null = null;
+    for (let y = sea.y0; y < sea.y1 && !pocket; y++) {
+      for (let x = sea.x0; x < sea.x1; x++) {
+        const i = y * width + x;
+        if (seen[i] || cells[i] === Cell.Land) continue;
+        const cellsIn: number[] = [];
+        flood(i, cellsIn);
+        if (cellsIn.length < 6) {
+          for (const j of cellsIn) cells[j] = Cell.Land;
+          continue;
+        }
+        pocket = cellsIn;
+        break;
+      }
+    }
+    if (!pocket) return;
+    const start = pocket[Math.floor(pocket.length / 2)];
+    connectWithinFirstSea(cells, width, sea, home, { x: start % width, y: Math.floor(start / width) });
+  }
 }
 
 /** Make sure the far port can be reached from home without leaving the first sea, cutting a strait if needed. */

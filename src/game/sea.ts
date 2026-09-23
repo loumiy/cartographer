@@ -8,6 +8,8 @@ import {
   compass,
   dailyRations,
   daysOfStores,
+  forageExpected,
+  forageRecovery,
   distToDock,
   hurtHull,
   inSailable,
@@ -857,12 +859,19 @@ function buildLandfall(state: GameState, result?: string): Interrupt {
   const lm = state.world.landmasses[lf.landmass];
   const space = cargoCap(state) - cargoUsed(state);
   const ship = state.ship;
+  const recovery = forageRecovery(state, lm);
+  const expectDays = Math.round(forageExpected(state, lm) / Math.max(1, dailyRations(state)));
+  const pickedOver = recovery < 0.15;
   const choices: Choice[] = [
     {
       id: 'shore',
       label: 'Send a shore party',
-      hint: lf.shorePartyDone ? 'Already foraged here' : 'Refill stores; 1 day; small risk to the party',
-      disabled: lf.shorePartyDone,
+      hint: lf.shorePartyDone
+        ? 'Already foraged here'
+        : pickedOver
+          ? `Picked over: the land recovers in ${Math.ceil((1 - recovery) * CONFIG.season)} days`
+          : `About ${expectDays} days of stores${recovery < 1 ? ' (still recovering)' : ''}; 1 day; small risk to the party`,
+      disabled: lf.shorePartyDone || pickedOver,
     },
     {
       id: 'survey',
@@ -960,7 +969,9 @@ function landfallAction(state: GameState, choiceId: string) {
     lf.shorePartyDone = true;
     passDays(state, 1);
     if (state.mode !== 'sea') return;
-    const gain = withRng(state, (rng) => Math.round(ship.crew * rng.range(7, 13) * lm.forage));
+    // Bigger land feeds more; land foraged recently has less to give.
+    const gain = withRng(state, (rng) => Math.round((forageExpected(state, lm) * rng.range(7, 13)) / 10));
+    lm.lastForaged = state.day;
     const room = provisionCap(state) - ship.provisions;
     const got = Math.max(0, Math.min(room, gain));
     ship.provisions += got;

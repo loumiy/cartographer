@@ -36,11 +36,35 @@ export function sightRadius(state: GameState): number {
 }
 
 export function provisionCap(state: GameState): number {
-  return CONFIG.ships[state.ship.kind].stores + CONFIG.provisionCapPerLevel * state.ship.refits.stores;
+  return CONFIG.ships[state.ship.kind].stores + levelsSum(CONFIG.storesLevels, state.ship.refits.stores);
 }
 
 export function cargoCap(state: GameState): number {
-  return CONFIG.ships[state.ship.kind].hold + CONFIG.cargoCapPerLevel * state.ship.refits.hold;
+  return CONFIG.ships[state.ship.kind].hold + levelsSum(CONFIG.holdLevels, state.ship.refits.hold);
+}
+
+/** Capacity added by the first `n` refit levels. */
+export function levelsSum(levels: readonly number[], n: number): number {
+  return levels.slice(0, n).reduce((a, b) => a + b, 0);
+}
+
+/** How far the stores reach: days at the current crew and rations. */
+export function rangeDays(state: GameState, provisions = state.ship.provisions): number {
+  return provisions / Math.max(1, dailyRations(state));
+}
+
+/**
+ * How much of a landmass's forage has come back since it was last foraged: none just after,
+ * all of it a season later.
+ */
+export function forageRecovery(state: GameState, lm: { lastForaged?: number }): number {
+  if (lm.lastForaged === undefined) return 1;
+  return Math.max(0, Math.min(1, (state.day - lm.lastForaged) / CONFIG.season));
+}
+
+/** Expected shore-party yield in crew-days at this landmass now (before the random spread). */
+export function forageExpected(state: GameState, lm: { forage: number; kind: string; lastForaged?: number }): number {
+  return state.ship.crew * 10 * lm.forage * (CONFIG.forageBySize[lm.kind] ?? 1) * forageRecovery(state, lm);
 }
 
 export function crewMax(state: GameState): number {

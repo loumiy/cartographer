@@ -1,5 +1,5 @@
 import { CONFIG } from './config';
-import { cargoCap, cargoUsed, crewMax, isKnown, knownFactor, log, money, postAnchor, postAt, provisionCap, raise, withRng } from './core';
+import { cargoCap, cargoUsed, crewMax, isKnown, knownFactor, levelsSum, log, money, postAnchor, postAt, provisionCap, raise, withRng } from './core';
 import { shipName } from './names';
 import { findPath, pathLength, simplifyPath } from './pathfind';
 import { Cell, type GameState, type Post, type Route, type RouteStop, type ShipKind, type Site, type Vessel } from './types';
@@ -166,7 +166,7 @@ export function cannotCommand(state: GameState, v: Vessel): string | null {
   if (state.mode !== 'port') return 'Only in port';
   if (v.routeId !== null) return 'She is working a route';
   if (v.portId !== state.portId) return `She lies at ${state.world.ports[v.portId].name}`;
-  const hold = CONFIG.ships[v.kind].hold + CONFIG.cargoCapPerLevel * v.refits.hold;
+  const hold = CONFIG.ships[v.kind].hold + levelsSum(CONFIG.holdLevels, v.refits.hold);
   if (cargoUsed(state) > hold) return 'Her hold is too small for our cargo';
   return null;
 }
