@@ -24,7 +24,7 @@ import {
   updateHomeEstimate,
   withRng,
 } from './core';
-import { arrive, processSeason } from './economy';
+import { arrive, passageCharted, processSeason } from './economy';
 import { findPath, simplifyPath } from './pathfind';
 import { Cell, type Choice, type Contract, type GameState, type Interrupt } from './types';
 import { cellAt, idx, inBounds, regionOf, remoteness, rowIsCold } from './world';
@@ -91,7 +91,9 @@ function endDay(state: GameState, quiet: boolean) {
 
   updateHomeEstimate(state);
   checkProvisionAlerts(state);
-  if (!quiet && !state.pending.length) rollEvents(state);
+  const c = v.contract;
+  if (c?.kind === 'passage' && !c.done && passageCharted(state)) objectiveReached(state, 'a clear passage between the ports is charted');
+  if (!quiet && !state.pending.length && !state.paused) rollEvents(state);
 }
 
 function checkProvisionAlerts(state: GameState) {
@@ -854,6 +856,10 @@ function buildLandfall(state: GameState, result?: string): Interrupt {
       disabled: lf.surveyed,
     },
   ];
+  const c = v.contract;
+  if (c?.kind === 'supply_post' && c.post && !c.done && Math.hypot(c.post.x + 0.5 - state.ship.x, c.post.y + 0.5 - state.ship.y) <= 4) {
+    choices.unshift({ id: 'deliver', label: `Land the supplies at ${c.post.name}`, hint: 'The contract’s objective', tone: 'safe' });
+  }
   for (const site of sitesInReach(state, true)) {
     choices.push({
       id: `load:${site.id}`,
@@ -884,7 +890,14 @@ function landfallAction(state: GameState, choiceId: string) {
     return;
   }
   let result = '';
-  if (choiceId === 'shore') {
+  if (choiceId === 'deliver') {
+    ship.cargo = ship.cargo.filter((l) => l.type !== 'goods');
+    result = 'The boats land the stores and tools. The post’s factor signs for them.';
+    log(state, result, 'good');
+    objectiveReached(state, 'the supplies are landed');
+    state.paused = false;
+    state.alert = null;
+  } else if (choiceId === 'shore') {
     lf.shorePartyDone = true;
     passDays(state, 1);
     if (state.mode !== 'sea') return;

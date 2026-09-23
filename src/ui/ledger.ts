@@ -21,6 +21,7 @@ import {
   buyUpgrade,
   canSail,
   cancelContract,
+  cannotSign,
   cargoValue,
   hireCrew,
   maxTier,
@@ -381,29 +382,52 @@ function contractsTab(ctx: UiContext) {
       { class: 'caption muted' },
       `Reputation ${state.reputation}. ${tier < 3 ? `Contracts farther out open at ${needed}.` : 'The best contracts are open to you.'} Contract charts belong to the patron and cannot be kept secret.`,
     ),
-    state.accepted
-      ? h(
-          'div',
-          { class: 'contract accepted' },
-          h('p', { class: 'label' }, `Signed: ${state.accepted.title}`),
-          h('p', { class: 'caption' }, state.accepted.description),
-          button('Return contract', () => act(cancelContract), {
-            kind: 'quiet',
-            disabled: state.cash < state.accepted.advance ? `Repaying the advance needs ${money(state.accepted.advance)}` : false,
-          }),
-        )
-      : null,
+    state.accepted ? acceptedContract(ctx, state.accepted) : null,
     ...state.contracts.map((c) =>
       h(
         'div',
         { class: 'contract', onmouseenter: () => ctx.preview(c), onmouseleave: () => ctx.preview(null), onfocusin: () => ctx.preview(c) },
         h('p', { class: 'label' }, `${c.patron}: ${c.title}`),
         h('p', { class: 'caption' }, c.description),
+        endsAt(state, c),
         h('p', { class: 'caption' }, h('span', { class: 'money' }, `Advance ${money(c.advance)} · bonus ${money(c.bonus)}`)),
-        button('Sign contract', () => act((s) => acceptContract(s, c.id)), { disabled: state.accepted ? 'One contract at a time' : false }),
+        button('Sign contract', () => act((s) => acceptContract(s, c.id)), { disabled: cannotSign(state, c) ?? false }),
       ),
     ),
     state.contracts.length === 0 && !state.accepted ? h('p', { class: 'caption muted' }, 'No contracts on offer. New ones come in with each voyage.') : null,
+  );
+}
+
+/** Where the contract ends: back here, or one way to the other port. */
+function endsAt(state: GameState, c: Contract) {
+  const to = state.world.ports[c.to];
+  return h('p', { class: 'caption' }, h('span', { class: 'label' }, `Ends at: ${to.name}`), c.to === c.from ? ' (return)' : ' (one way)');
+}
+
+function acceptedContract(ctx: UiContext, c: Contract) {
+  const { state, act } = ctx;
+  const underway = c.startDay !== null;
+  const left = c.deadline - contractElapsed(state, c);
+  return h(
+    'div',
+    { class: 'contract accepted' },
+    h('p', { class: 'label' }, `${underway ? 'Under way' : 'Signed'}: ${c.title}`),
+    h('p', { class: 'caption' }, c.description),
+    endsAt(state, c),
+    underway
+      ? h('p', { class: `caption ${left < 0 ? 'risk' : c.done ? 'safe' : 'muted'}` }, c.done ? `Objective reached. ${left} days left to reach ${state.world.ports[c.to].name}.` : `${left} days left.`)
+      : null,
+    underway
+      ? h(
+          'div',
+          { class: 'choice-line' },
+          button('Abandon contract', () => act(cancelContract), { kind: 'risk' }),
+          h('span', { class: 'caption risk' }, 'No bonus, and our name suffers'),
+        )
+      : button('Return contract', () => act(cancelContract), {
+          kind: 'quiet',
+          disabled: state.cash < c.advance ? `Repaying the advance needs ${money(c.advance)}` : false,
+        }),
   );
 }
 

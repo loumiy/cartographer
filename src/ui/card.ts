@@ -95,10 +95,12 @@ function arrivalCard(ctx: UiContext): HTMLElement {
     r?.contract
       ? h(
           'p',
-          { class: `label ${r.contractResult === 'done' ? 'safe' : 'risk'}` },
+          { class: `label ${r.contractResult === 'done' ? 'safe' : r.contractResult === 'carried' ? '' : 'risk'}` },
           r.contractResult === 'done'
             ? `Contract fulfilled: the ${r.contract.patron} pays a bonus of ${money(r.bonus)}. The charts are theirs.`
-            : r.contractResult === 'late'
+            : r.contractResult === 'carried'
+              ? `The contract ends at ${state.world.ports[r.contract.to].name}, not here. It stays open for the next voyage; the charts are still the ${r.contract.patron}’s.`
+              : r.contractResult === 'late'
               ? `Contract completed too late: no bonus, and our name suffers. The charts are the ${r.contract.patron}’s.`
               : `Contract failed: no bonus, and our name suffers. The charts are the ${r.contract.patron}’s.`,
         )

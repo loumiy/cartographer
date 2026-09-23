@@ -104,3 +104,92 @@ describe('the far shore', () => {
     expect(t.pending[0]?.title).toBe('A larger sheet');
   });
 });
+
+describe('contracts between ports', () => {
+  function expandedGame(seed: string) {
+    const s = newGame(seed);
+    s.world.ports[1].known = true;
+    s.expanded = true;
+    return s;
+  }
+
+  it('offers one-way contracts once the far port is known, and says where each ends', async () => {
+    const { generateContracts } = await import('../src/game/economy');
+    const s = expandedGame('offers');
+    const offers = generateContracts(s);
+    expect(offers.length).toBe(4);
+    expect(offers.some((c) => c.to === 1)).toBe(true);
+    const before = newGame('offers-v1');
+    expect(generateContracts(before).every((c) => c.to === 0)).toBe(true);
+  });
+
+  it('keeps a contract open when the ship docks at the other port, and pays at the named one', async () => {
+    const { acceptContract } = await import('../src/game/economy');
+    const s = expandedGame('carry');
+    s.contracts = [
+      { id: 900, patron: 'Crown', kind: 'despatches', title: 'd', description: '', tier: 0, advance: 10, bonus: 150, from: 0, to: 1, deadline: 60, startDay: null, done: false, sitesFound: [] },
+    ];
+    acceptContract(s, 900);
+    buyProvisions(s, 300);
+    setSail(s);
+    // Put in at home again first: the contract stays open.
+    s.voyage!.leftHome = true;
+    s.day += 5;
+    arrive(s, 0);
+    expect(s.report!.contractResult).toBe('carried');
+    expect(s.accepted?.id).toBe(900);
+    settle(s);
+    setSail(s);
+    s.day += 10;
+    const cash = s.cash;
+    arrive(s, 1);
+    expect(s.report!.contractResult).toBe('done');
+    expect(s.cash).toBeGreaterThan(cash + 100);
+    expect(s.reputation).toBe(1);
+  });
+
+  it('fails a carried contract once its deadline has passed', () => {
+    const s = expandedGame('late');
+    s.accepted = { id: 901, patron: 'Crown', kind: 'despatches', title: 'd', description: '', tier: 0, advance: 0, bonus: 150, from: 0, to: 1, deadline: 5, startDay: null, done: false, sitesFound: [] };
+    buyProvisions(s, 300);
+    setSail(s);
+    s.day += 20;
+    arrive(s, 0);
+    expect(s.report!.contractResult).toBe('failed');
+    expect(s.accepted).toBeNull();
+  });
+
+  it('loads a patron’s goods on signing and lands them at the post', async () => {
+    const { acceptContract, cargoValue } = await import('../src/game/economy');
+    const s = expandedGame('supply');
+    const post = { x: 40, y: s.world.firstSea.y0 + 40, name: 'the Crown’s post' };
+    s.contracts = [
+      { id: 902, patron: 'Crown', kind: 'supply_post', title: 's', description: '', tier: 0, advance: 0, bonus: 200, from: 0, to: 0, deadline: 60, startDay: null, done: false, sitesFound: [], post, goods: 6 },
+    ];
+    acceptContract(s, 902);
+    expect(s.ship.cargo.find((l) => l.type === 'goods')?.qty).toBe(6);
+    expect(cargoValue(s)).toBe(0);
+    buyProvisions(s, 300);
+    setSail(s);
+    s.ship.x = post.x + 1.5;
+    s.ship.y = post.y + 0.5;
+    const lm = s.world.landmassOf[idx(s.world, post.x, post.y)];
+    const { openLandfall } = await import('../src/game/sea');
+    openLandfall(s, Math.max(0, lm));
+    expect(s.pending[0].choices.some((c) => c.id === 'deliver')).toBe(true);
+    resolve(s, 'deliver');
+    expect(s.voyage!.contract!.done).toBe(true);
+    expect(s.ship.cargo.some((l) => l.type === 'goods')).toBe(false);
+  });
+});
+
+describe('charting a passage', () => {
+  it('counts only a continuous charted route that avoids every known hazard', async () => {
+    const { passageCharted } = await import('../src/game/economy');
+    const s = newGame('passage');
+    s.world.ports[1].known = true;
+    expect(passageCharted(s)).toBe(false);
+    s.known.fill(1);
+    expect(passageCharted(s)).toBe(true);
+  });
+});

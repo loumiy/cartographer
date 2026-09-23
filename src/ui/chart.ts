@@ -644,7 +644,10 @@ export class Chart {
       const s = this.toScreen({ x: port.x + 0.5, y: port.y + 0.5 });
       place(port.name, { x: s.x + 14, y: s.y - 16 }, 18, p.ink, 'left');
     }
+    const sc = this.view.scale;
     for (const l of this.labels) {
+      // Zoomed out, unnamed small land goes unlabelled so the chart stays legible.
+      if (l.muted && !l.big && sc < (l.above ? 14 : 10)) continue;
       const s = this.toScreen({ x: l.x, y: l.y });
       place(l.text, { x: s.x, y: l.above ? s.y - 10 : s.y }, l.big ? 18 : 14, l.muted ? p.inkMuted : p.ink);
     }
@@ -693,6 +696,26 @@ export class Chart {
       ctx.arc(t.x, t.y, (target.r + 0.5) * c, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+
+    // A patron's post to be supplied: a small flag in the objective's verdigris.
+    const post = contract?.kind === 'supply_post' && !contract.done ? contract.post : undefined;
+    if (post) {
+      const s = this.toScreen({ x: post.x + 0.5, y: post.y + 0.5 });
+      ctx.strokeStyle = p.verdigris;
+      ctx.fillStyle = p.verdigris;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([2, 5]);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, Math.max(14, 3 * c), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(s.x - 3, s.y + 8);
+      ctx.lineTo(s.x - 3, s.y - 8);
+      ctx.stroke();
+      ctx.fillRect(s.x - 3, s.y - 8, 9, 6);
     }
 
     // Resource sites: gilt discs; kept secrets carry a seal ring.

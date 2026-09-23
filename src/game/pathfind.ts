@@ -6,6 +6,8 @@ export interface PathOptions {
   allowUnknown?: boolean;
   /** Cells outside this rectangle are impassable. */
   bounds?: Rect;
+  /** Treat known reefs and ice as impassable instead of costly. */
+  avoidHazards?: boolean;
 }
 
 const NEIGHBOURS = [
@@ -53,6 +55,7 @@ export function findPath(
       if (x < b.x0 || y < b.y0 || x >= b.x1 || y >= b.y1) return false;
     }
     if (!opts.known[i]) return !!opts.allowUnknown;
+    if (opts.avoidHazards && (world.cells[i] === Cell.Reef || world.cells[i] === Cell.Ice)) return false;
     return world.cells[i] !== Cell.Land;
   };
   if (!passable(goal) && goal !== start) return null;

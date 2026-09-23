@@ -1,6 +1,8 @@
 import { CONFIG } from './config';
 import {
   bounds,
+  cargoCap,
+  cargoUsed,
   chartPrice,
   compass,
   currentPort,
@@ -17,7 +19,8 @@ import {
 } from './core';
 import { contractElapsed, deliverableQty, gameOver, regionShare, reveal } from './sea';
 import type { ChartItem, Contract, GameState, ResourceType, Voyage, VoyageReport } from './types';
-import { driftIce, inRect } from './world';
+import { findPath } from './pathfind';
+import { driftIce, inRect, isCoast } from './world';
 
 // ---------------------------------------------------------------------------
 // Seasons
@@ -196,6 +199,9 @@ export function arrive(state: GameState, portId: number) {
 function settleContract(state: GameState, c: Contract, portId: number, report: VoyageReport) {
   const ship = state.ship;
   const elapsed = contractElapsed(state, c);
+  // Despatches are delivered by arriving; a charted passage is judged on arrival too.
+  if (portId === c.to && c.kind === 'despatches') c.done = true;
+  if (portId === c.to && c.kind === 'passage' && passageCharted(state)) c.done = true;
   for (const id of c.sitesFound) state.world.sites[id].knownBy = Math.max(state.world.sites[id].knownBy, CONFIG.publicKnownBy);
   if (portId !== c.to && elapsed <= c.deadline) {
     report.contractResult = 'carried';
@@ -231,6 +237,19 @@ function settleContract(state: GameState, c: Contract, portId: number, report: V
   }
   // Any of the patron's goods still aboard go back to the patron.
   ship.cargo = ship.cargo.filter((l) => l.type !== 'goods');
+}
+
+/** A continuous charted route between the two ports that keeps clear of every known hazard. */
+export function passageCharted(state: GameState): boolean {
+  const [a, b] = state.world.ports;
+  if (!a.known || !b.known) return false;
+  const path = findPath(state.world, { known: state.known, avoidHazards: true }, { x: a.dock.x + 0.5, y: a.dock.y + 0.5 }, { x: b.dock.x + 0.5, y: b.dock.y + 0.5 });
+  return !!path;
+}
+
+function landmassLabelAt(state: GameState, at: { x: number; y: number }): string {
+  const id = state.world.landmassOf[at.y * state.world.width + at.x];
+  return id >= 0 ? landmassLabel(state, id) : 'an unnamed coast';
 }
 
 function addChartItem(state: GameState, kind: ChartItem['kind'], label: string, value: number, ref: number, at: { x: number; y: number }): number {
@@ -454,23 +473,43 @@ export function maxTier(state: GameState): number {
   return Math.min(3, Math.floor(state.reputation / 2));
 }
 
+/** Why a contract can't be signed now, or null. */
+export function cannotSign(state: GameState, c: Contract): string | null {
+  if (state.accepted) return 'One contract at a time';
+  if (c.goods && cargoCap(state) - cargoUsed(state) < c.goods) return `Needs ${c.goods} units of free hold space`;
+  return null;
+}
+
 export function acceptContract(state: GameState, id: number) {
-  if (state.accepted || state.mode !== 'port') return;
+  if (state.mode !== 'port') return;
   const c = state.contracts.find((x) => x.id === id);
-  if (!c) return;
+  if (!c || cannotSign(state, c)) return;
   state.accepted = c;
   state.contracts = state.contracts.filter((x) => x.id !== id);
   state.cash += c.advance;
+  if (c.goods) state.ship.cargo.push({ siteId: -1, type: 'goods', qty: c.goods });
   log(state, `Contract signed with the ${c.patron}: ${c.title}. Advance of ${money(c.advance)} received.`, 'good');
 }
 
+/**
+ * Before sailing, a contract can be handed back with its advance. Once under way it can only be
+ * abandoned: no bonus, and our name suffers.
+ */
 export function cancelContract(state: GameState) {
   const c = state.accepted;
-  if (!c || state.cash < c.advance) return;
-  state.cash -= c.advance;
-  state.contracts.unshift(c);
-  state.accepted = null;
-  log(state, `Contract returned to the ${c.patron}, advance repaid.`, 'info');
+  if (!c) return;
+  if (c.startDay === null && state.cash < c.advance) return;
+  state.ship.cargo = state.ship.cargo.filter((l) => l.type !== 'goods');
+  if (c.startDay === null) {
+    state.cash -= c.advance;
+    state.contracts.unshift(c);
+    state.accepted = null;
+    log(state, `Contract returned to the ${c.patron}, advance repaid.`, 'info');
+  } else {
+    state.accepted = null;
+    state.reputation = Math.max(0, state.reputation - 1);
+    log(state, `Contract abandoned: ${c.title}. Our name suffers.`, 'bad');
+  }
 }
 
 function bearing(from: { x: number; y: number }, x: number, y: number): string {
@@ -483,6 +522,10 @@ function estCost(state: GameState, days: number): number {
   return Math.round(crew * days * (CONFIG.provisionCost + CONFIG.wagePerDay) + crew * CONFIG.wageAdvance + CONFIG.portFee);
 }
 
+/**
+ * Three offers from the port's harbour master. Once the far port is known, a fourth is one of
+ * the one-way kinds that end at the other port, and any offer may end there too.
+ */
 export function generateContracts(state: GameState): Contract[] {
   const top = maxTier(state);
   const tiers = [top, Math.max(0, top - 1), top];
@@ -494,9 +537,17 @@ export function generateContracts(state: GameState): Contract[] {
     }
     return all;
   });
+  const both = state.world.ports.every((p) => p.known);
+  const other = state.world.ports.find((p) => p.id !== state.portId)!.id;
   const out: Contract[] = [];
   for (let i = 0; i < 3; i++) {
-    const c = makeContract(state, kinds[i], tiers[i]) ?? makeContract(state, 'chart_region', tiers[i]);
+    const to = both && withRng(state, (rng) => rng.chance(0.3)) ? other : state.portId;
+    const c = makeContract(state, kinds[i], tiers[i], to) ?? makeContract(state, 'chart_region', tiers[i], to);
+    if (c) out.push(c);
+  }
+  if (both) {
+    const kind = withRng(state, (rng) => rng.pick(['despatches', 'passage', 'supply_post'] as const));
+    const c = makeContract(state, kind, top, other) ?? makeContract(state, 'despatches', top, other);
     if (c) out.push(c);
   }
   return out;
@@ -507,27 +558,100 @@ function tierBand(tier: number): [number, number] {
   return [0.12 + 0.2 * tier, 0.3 + 0.22 * tier];
 }
 
-function contractBase(state: GameState, tier: number) {
+function contractBase(state: GameState, tier: number, to: number) {
   const port = currentPort(state);
   return {
     id: state.nextId++,
     patron: withRng(state, (rng) => rng.pick(['Crown', 'Admiralty'] as const)),
     tier,
     from: port.id,
-    to: port.id,
+    to,
     startDay: null,
     done: false,
     sitesFound: [] as number[],
   };
 }
 
-function makeContract(state: GameState, kind: Contract['kind'], tier: number): Contract | null {
+/** Days' sail between two points in open water, roughly. */
+function sailDays(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  return Math.ceil(Math.hypot(a.x - b.x, a.y - b.y) / CONFIG.speedOpen);
+}
+
+function makeContract(state: GameState, kind: Contract['kind'], tier: number, to: number): Contract | null {
   const { world } = state;
   const port = currentPort(state);
+  const dest = world.ports[to];
   const dock = port.dock;
   const B = bounds(state);
   const span = CONFIG.seaWidth - 6;
   const [lo, hi] = tierBand(tier);
+  // A one-way contract adds the passage to the other port to the time allowed and the pay.
+  // Routes wind around land and slow along coasts: allow half as much again as the straight line.
+  const extra = to === port.id ? 0 : Math.ceil(sailDays(dock, dest.dock) * 1.5);
+  const endAt = to === port.id ? `back at ${port.name}` : `at ${dest.name}`;
+
+  if (kind === 'despatches') {
+    if (to === port.id) return null;
+    const days = extra + 6;
+    return {
+      ...contractBase(state, tier, to),
+      kind,
+      title: `Carry despatches to ${dest.name}`,
+      description: `Sealed letters from the ${port.name} Admiralty, to be delivered at ${dest.name} within ${days} days. Speed is what is paid for.`,
+      advance: Math.round(estCost(state, days) * 0.6),
+      bonus: Math.round(150 + extra * 6 + tier * 50),
+      deadline: days,
+    };
+  }
+
+  if (kind === 'passage') {
+    if (to === port.id) return null;
+    const deadline = extra * 3 + 20;
+    return {
+      ...contractBase(state, tier, to),
+      kind,
+      title: `Chart a passage to ${dest.name}`,
+      description: `Chart a continuous route from ${port.name} to ${dest.name} that keeps clear of every known reef and floe, then deliver it at ${dest.name} within ${deadline} days.`,
+      advance: Math.round(estCost(state, extra * 2) * 0.6),
+      bonus: Math.round(260 + extra * 5 + tier * 60),
+      deadline,
+    };
+  }
+
+  if (kind === 'supply_post') {
+    // The patron's post: a charted coast somewhere out at this tier's distance.
+    // The post stands on a charted coast, so it can be reached from the sea.
+    const coasts: { x: number; y: number }[] = [];
+    for (let i = 0; i < world.cells.length; i++) {
+      const id = world.landmassOf[i];
+      if (id < 0 || !state.known[i]) continue;
+      const lm = world.landmasses[id];
+      if (lm.home || lm.farShore) continue;
+      const x = i % world.width;
+      const y = Math.floor(i / world.width);
+      const d = Math.hypot(x - dock.x, y - dock.y) / span;
+      if (d < lo - 0.1 || d > hi + 0.15 || !inRect(B, x, y) || !isCoast(world, x, y)) continue;
+      coasts.push({ x, y });
+    }
+    if (!coasts.length) return null;
+    const at = withRng(state, (rng) => rng.pick(coasts));
+    const qty = 6;
+    const days = sailDays(dock, at) + sailDays(at, dest.dock) + 10;
+    const deadline = Math.ceil(days * 1.4);
+    const patron = withRng(state, (rng) => rng.pick(['Crown', 'Admiralty'] as const));
+    return {
+      ...contractBase(state, tier, to),
+      patron,
+      kind,
+      title: `Supply the ${patron}’s post${to === port.id ? '' : ` and sail on to ${dest.name}`}`,
+      description: `Carry ${qty} units of the ${patron}’s stores and tools to its post on ${landmassLabelAt(state, at)}, land them, and be ${endAt} within ${deadline} days. They take ${qty} units of hold space.`,
+      advance: Math.round(estCost(state, days) * 0.7),
+      bonus: Math.round(180 + Math.hypot(at.x - dock.x, at.y - dock.y) * 3 + extra * 3 + tier * 60),
+      deadline,
+      post: { x: at.x, y: at.y, name: `the ${patron}’s post` },
+      goods: qty,
+    };
+  }
 
   if (kind === 'chart_region') {
     for (let attempt = 0; attempt < 80; attempt++) {
@@ -541,15 +665,15 @@ function makeContract(state: GameState, kind: Contract['kind'], tier: number): C
       const target = { x, y, r, share: 0.6 };
       if (regionShare(state, target) > 0.3) continue;
       const dist = Math.hypot(x - dock.x, y - dock.y);
-      const days = Math.ceil((2 * dist) / CONFIG.speedOpen) + 8;
+      const days = Math.ceil((2 * dist) / CONFIG.speedOpen) + 8 + extra;
       const deadline = Math.ceil(days * 1.5);
       return {
-        ...contractBase(state, tier),
+        ...contractBase(state, tier, to),
         kind,
         title: `Chart the waters ${Math.round(dist)} leagues ${bearing(dock, x, y)}`,
-        description: `The sea around the marked position charted: at least 60% of the circle. Back at ${port.name} within ${deadline} days.`,
+        description: `The sea around the marked position charted: at least 60% of the circle. Deliver the chart ${endAt} within ${deadline} days.`,
         advance: Math.round(estCost(state, days) * 0.75),
-        bonus: Math.round(120 + dist * 4 + tier * 70),
+        bonus: Math.round(120 + dist * 4 + tier * 70 + extra * 3),
         deadline,
         target,
       };
@@ -564,14 +688,14 @@ function makeContract(state: GameState, kind: Contract['kind'], tier: number): C
       (lm) => !lm.discovered && inRect(B, lm.cx, lm.cy) && Math.hypot(lm.cx - dock.x, lm.cy - dock.y) <= reach,
     );
     if (!candidate) return null;
-    const deadline = withinDays * 2 + 10;
+    const deadline = withinDays * 2 + 10 + extra;
     return {
-      ...contractBase(state, tier),
+      ...contractBase(state, tier, to),
       kind,
       title: `Find new land within ${withinDays} days’ sail`,
-      description: `Sight any land not yet on the chart within ${withinDays} days of leaving port, and be back at ${port.name} within ${deadline} days.`,
+      description: `Sight any land not yet on the chart within ${withinDays} days of leaving port, and be ${endAt} within ${deadline} days.`,
       advance: Math.round(estCost(state, withinDays * 2) * 0.75),
-      bonus: Math.round(140 + tier * 90),
+      bonus: Math.round(140 + tier * 90 + extra * 3),
       deadline,
       withinDays,
     };
@@ -590,16 +714,16 @@ function makeContract(state: GameState, kind: Contract['kind'], tier: number): C
     const nearest = Math.min(
       ...world.sites.filter((s) => s.type === type && !s.surveyed && inRect(B, s.x, s.y)).map((s) => Math.hypot(s.x - dock.x, s.y - dock.y)),
     );
-    const days = Math.ceil((2 * nearest) / CONFIG.speedOpen) + 12;
+    const days = Math.ceil((2 * nearest) / CONFIG.speedOpen) + 12 + extra;
     const deadline = Math.ceil(days * 1.6);
     const label = CONFIG.resources[type].label.toLowerCase();
     return {
-      ...contractBase(state, tier),
+      ...contractBase(state, tier, to),
       kind,
-      title: `Bring ${qty} units of ${label} to ${port.name}`,
-      description: `Find a new source of ${label} (one nobody has surveyed before) and bring ${qty} units to ${port.name} within ${deadline} days.`,
+      title: `Bring ${qty} units of ${label} to ${dest.name}`,
+      description: `Find a new source of ${label} (one nobody has surveyed before) and bring ${qty} units to ${dest.name} within ${deadline} days.`,
       advance: Math.round(estCost(state, days) * 0.7),
-      bonus: Math.round(qty * CONFIG.resources[type].price * 1.3 + 80 + tier * 60),
+      bonus: Math.round(qty * CONFIG.resources[type].price * 1.3 + 80 + tier * 60 + extra * 3),
       deadline,
       resource: { type, qty },
     };
