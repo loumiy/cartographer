@@ -2,6 +2,8 @@ export enum Cell {
   Sea = 0,
   Land = 1,
   Reef = 2,
+  /** Drifting ice: a hazard like a reef, in the cold northern sea. It moves each season. */
+  Ice = 3,
 }
 
 export type ResourceType = 'timber' | 'furs' | 'spice' | 'pearls';
@@ -24,6 +26,8 @@ export interface Landmass {
   forage: number;
   /** On the player's chart. */
   discovered: boolean;
+  /** The far port's continent. */
+  farShore?: boolean;
 }
 
 export interface Site {
@@ -53,10 +57,40 @@ export interface Wreck {
   sighted: boolean;
 }
 
+export interface Port {
+  id: number;
+  name: string;
+  /** Who holds the port. */
+  power: string;
+  /** Town: the land cell the port stands on. */
+  x: number;
+  y: number;
+  /** Sea cell where ships dock. */
+  dock: { x: number; y: number };
+  /** Price multiplier per cargo type at this port's market. */
+  prices: Record<ResourceType, number>;
+  /** On the player's chart. The home port always is. */
+  known: boolean;
+}
+
+export interface Rect {
+  x0: number;
+  y0: number;
+  /** Exclusive. */
+  x1: number;
+  y1: number;
+}
+
+/** Which corner of the first sea holds the far port; the world grows away from it. */
+export type Corner = 'ne' | 'se';
+
 export interface World {
   seed: string;
   width: number;
   height: number;
+  corner: Corner;
+  /** The V1 sea: all that can be sailed until the far port is found. */
+  firstSea: Rect;
   /** Cell per index (y * width + x). */
   cells: Uint8Array;
   /** Landmass id per cell, -1 for water. */
@@ -64,15 +98,14 @@ export interface World {
   landmasses: Landmass[];
   sites: Site[];
   wrecks: Wreck[];
-  homePort: { x: number; y: number };
-  /** Sea cell where the ship docks. */
-  dock: { x: number; y: number };
-  portName: string;
+  /** 0 is home; 1 is the far port. */
+  ports: Port[];
 }
 
 export interface CargoLot {
+  /** Site it was loaded at; -1 for a patron's goods. */
   siteId: number;
-  type: ResourceType;
+  type: ResourceType | 'goods';
   qty: number;
 }
 
@@ -99,7 +132,7 @@ export interface Upgrades {
   hold: number;
 }
 
-export type ContractKind = 'chart_region' | 'find_land' | 'find_resource';
+export type ContractKind = 'chart_region' | 'find_land' | 'find_resource' | 'despatches' | 'passage' | 'supply_post';
 
 export interface Contract {
   id: number;
@@ -110,8 +143,21 @@ export interface Contract {
   tier: number;
   advance: number;
   bonus: number;
-  /** Voyage must end at home within this many days. */
+  /** Port where it was signed, and port where it must end. */
+  from: number;
+  to: number;
+  /** Must end at `to` within this many days of first setting sail under it. */
   deadline: number;
+  /** Day the first voyage under this contract set sail; null until then. */
+  startDay: number | null;
+  /** Objective reached; the bonus is paid on reaching `to` in time. */
+  done: boolean;
+  /** find_resource: sites surveyed while under this contract. */
+  sitesFound: number[];
+  /** supply_post: the patron's post, where the goods are to be landed. */
+  post?: { x: number; y: number; name: string };
+  /** supply_post: units of the patron's goods carried in the hold. */
+  goods?: number;
   /** chart_region: centre and radius; charted share required. */
   target?: { x: number; y: number; r: number; share: number };
   /** find_land: new land must be sighted within this many days of sailing. */
@@ -128,6 +174,9 @@ export interface ChartItem {
   value: number;
   /** area: charted cell count. landmass/site: the id. */
   ref: number;
+  /** Where the charted waters lie: each Admiralty pays more for waters near the other port. */
+  x: number;
+  y: number;
 }
 
 export interface Choice {
@@ -142,6 +191,7 @@ export interface Choice {
 export type InterruptKind =
   | 'notice'
   | 'land_ho'
+  | 'far_port'
   | 'storm'
   | 'storm_warning'
   | 'sickness'
@@ -189,11 +239,17 @@ export interface Voyage {
   sign: { x: number; y: number; dir: string; until: number } | null;
   landfallTarget: number;
   landfall: Landfall | null;
-  objectiveDone: boolean;
   leftHome: boolean;
-  /** Estimated days to sail home over charted water, and the route. */
+  /** Port the voyage started from. */
+  startPort: number;
+  /** Nearest known port by charted water: its id, days away and route. */
+  homePort: number;
   homeDays: number;
   homeRoute: { x: number; y: number }[];
+  /** Days to each port by charted water (Infinity where unknown or unreachable). */
+  portDays: number[];
+  /** Sum of coordinates of newly charted cells, for placing the voyage's chart. */
+  newSum: { x: number; y: number };
   /** Days since the last stop for a decision; drives the pacing filler. */
   quietDays: number;
   /** Sub-day progress, 0..STEPS_PER_DAY-1. */
@@ -202,11 +258,13 @@ export interface Voyage {
 
 export interface VoyageReport {
   days: number;
+  /** Port the voyage ended at. */
+  port: number;
   newCells: number;
   landmasses: number[];
   sites: number[];
   contract: Contract | null;
-  contractResult: 'done' | 'late' | 'failed' | null;
+  contractResult: 'done' | 'late' | 'failed' | 'carried' | null;
   bonus: number;
   delivered: number;
   wages: number;
@@ -223,6 +281,10 @@ export interface LogEntry {
 export interface GameState {
   version: number;
   world: World;
+  /** Port the ship lies in, or last sailed from. */
+  portId: number;
+  /** The far port has been found and the whole world can be sailed. */
+  expanded: boolean;
   /** 1 if the cell is on the player's chart. */
   known: Uint8Array;
   rng: number;

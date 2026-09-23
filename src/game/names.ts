@@ -39,3 +39,10 @@ function draw(rng: Rng, kind: LandmassKind): string {
 export function portName(rng: Rng): string {
   return rng.pick(PORTS);
 }
+
+const FAR_PORTS = ['Saint Anselm', 'Porto Lume', 'Vareth', 'Bonaventure', 'Oster Quay'];
+const POWERS = ['the Lusan Crown', 'the Valdran Company', 'the Free City of Oster', 'the Margravate of Hule'];
+
+export function farPort(rng: Rng): { name: string; power: string } {
+  return { name: rng.pick(FAR_PORTS), power: rng.pick(POWERS) };
+}

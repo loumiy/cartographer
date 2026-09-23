@@ -15,7 +15,7 @@ describe('world generation', () => {
   it('puts the dock on open water with every sea cell reachable', () => {
     for (const seed of ['a', 'b', 'c', 'd']) {
       const w = generateWorld(seed);
-      expect(w.cells[idx(w, w.dock.x, w.dock.y)]).toBe(Cell.Sea);
+      expect(w.cells[idx(w, w.ports[0].dock.x, w.ports[0].dock.y)]).toBe(Cell.Sea);
       const all = new Uint8Array(w.width * w.height).fill(1);
       let far = -1;
       for (let i = w.cells.length - 1; i >= 0; i--) {
@@ -24,7 +24,7 @@ describe('world generation', () => {
           break;
         }
       }
-      const path = findPath(w, { known: all }, { x: w.dock.x + 0.5, y: w.dock.y + 0.5 }, { x: (far % w.width) + 0.5, y: Math.floor(far / w.width) + 0.5 });
+      const path = findPath(w, { known: all }, { x: w.ports[0].dock.x + 0.5, y: w.ports[0].dock.y + 0.5 }, { x: (far % w.width) + 0.5, y: Math.floor(far / w.width) + 0.5 });
       expect(path).not.toBeNull();
     }
   });

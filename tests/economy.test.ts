@@ -40,7 +40,7 @@ describe('economy', () => {
     s.voyage!.landmassesFound.push(site.landmass);
     s.voyage!.newCells = 300;
     s.voyage!.days = 20;
-    arrive(s);
+    arrive(s, 0);
     expect(s.mode).toBe('port');
     expect(s.chartCase.map((c) => c.kind).sort()).toEqual(['area', 'landmass', 'site']);
     expect(isSecret(site)).toBe(true);
@@ -51,7 +51,7 @@ describe('economy', () => {
     const site = s.world.sites[0];
     site.surveyed = true;
     site.knownBy = 1;
-    s.chartCase.push({ id: 99, kind: 'site', label: 'x', value: 100, ref: site.id });
+    s.chartCase.push({ id: 99, kind: 'site', label: 'x', value: 100, ref: site.id, x: site.x, y: site.y });
     const secretPrice = unitPrice(site);
     const cash = s.cash;
     sellChartItem(s, 99);
@@ -82,7 +82,7 @@ describe('economy', () => {
     processSeason(s);
     expect(s.paymentsDue).toBe(CONFIG.paymentPerSeason);
     s.cash = 1000;
-    arrive(s);
+    arrive(s, 0);
     settle(s);
     expect(s.paymentsDue).toBe(0);
     expect(s.debt).toBe(CONFIG.debt - CONFIG.paymentPerSeason);
@@ -93,7 +93,7 @@ describe('economy', () => {
     processSeason(s);
     s.cash = 0;
     s.ship.cargo = [];
-    arrive(s);
+    arrive(s, 0);
     settle(s);
     expect(s.mode).toBe('over');
     expect(s.outcome).toBe('lost');
@@ -104,7 +104,7 @@ describe('economy', () => {
     const site = t.world.sites.find((x) => x.type === 'pearls' || x.type === 'spice')!;
     site.knownBy = 1;
     t.ship.cargo = [{ siteId: site.id, type: site.type, qty: 40 }];
-    arrive(t);
+    arrive(t, 0);
     settle(t);
     expect(t.mode).toBe('port');
     expect(t.ship.cargo.length).toBe(0);
@@ -136,10 +136,10 @@ describe('economy', () => {
     expect(s.cash).toBe(cash + c.advance);
     buyProvisions(s, 200);
     setSail(s);
-    s.voyage!.objectiveDone = true;
+    s.voyage!.contract!.done = true;
     s.voyage!.days = 5;
     const before = s.cash;
-    arrive(s);
+    arrive(s, 0);
     expect(s.reputation).toBe(1);
     expect(s.cash).toBeGreaterThan(before);
     expect(s.chartCase.length).toBe(0); // The patron owns the chart.
@@ -152,7 +152,7 @@ describe('economy', () => {
     s.ship.cargo = [{ siteId: site.id, type: site.type, qty: 10 }];
     const cash = s.cash;
     sellCargo(s);
-    expect(s.cash).toBe(cash + Math.round(10 * unitPrice(site)));
+    expect(s.cash).toBe(cash + Math.round(10 * unitPrice(site, s.world.ports[0])));
   });
 
   it('round-trips through a save', () => {

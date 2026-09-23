@@ -2,8 +2,11 @@ import type { ResourceType } from './types';
 
 /** All tuning numbers in one place. */
 export const CONFIG = {
-  width: 120,
-  height: 84,
+  /** One sea: the V1 map. The world is a 2 × 2 grid of seas. */
+  seaWidth: 120,
+  seaHeight: 84,
+  width: 240,
+  height: 168,
 
   stepsPerDay: 8,
   /** Cells per day in open water. */
@@ -56,6 +59,15 @@ export const CONFIG = {
     spice: { price: 28, stock: 10, label: 'Spice' },
     pearls: { price: 46, stock: 7, label: 'Pearls' },
   } as Record<ResourceType, { price: number; stock: number; label: string }>,
+
+  /** Market price multipliers: each port pays well for what grows far from it. */
+  portPrices: [
+    { timber: 0.8, furs: 1.2, spice: 1.3, pearls: 1.0 },
+    { timber: 1.3, furs: 0.9, spice: 0.8, pearls: 1.1 },
+  ] as Record<ResourceType, number>[],
+  /** Chart prices once both ports are known: waters near the other port pay more. */
+  chartFarBonus: 1.25,
+  chartNearFactor: 0.85,
 
   upgrades: {
     spyglass: [180, 400, 800],

@@ -94,7 +94,7 @@ function showTitle() {
               'div',
               { class: 'row' },
               button('Continue voyage', () => startGame(saved), { kind: 'primary' }),
-              h('span', { class: 'caption muted' }, `${saved.world.portName}, voyage ${saved.voyagesSailed}, ${saved.debt > 0 ? `debt ${money(saved.debt)}` : 'ship owned outright'}`),
+              h('span', { class: 'caption muted' }, `${saved.world.ports[saved.portId].name}, voyage ${saved.voyagesSailed}, ${saved.debt > 0 ? `debt ${money(saved.debt)}` : 'ship owned outright'}`),
             )
           : null,
         h(
@@ -134,6 +134,7 @@ function startGame(state: GameState) {
 
   const chart = new Chart(chartHost);
   chartHost.insertBefore(chart.canvas, cardHost);
+  chartHost.insertBefore(chart.controls, cardHost);
 
   let dirty = true;
   let lastCard: unknown = null;
@@ -220,11 +221,9 @@ function startGame(state: GameState) {
     renderCardLayer();
   };
 
-  // Chart input: click adds a waypoint, right-click removes the last one.
-  chart.canvas.addEventListener('click', (e) => {
+  // Chart input: a tap adds a waypoint, right-click removes the last one. Drag pans, wheel zooms.
+  chart.onTap = (p) => {
     if (state.mode !== 'sea' || state.pending.length) return;
-    const r = chart.canvas.getBoundingClientRect();
-    const p = chart.toCell(e.clientX - r.left, e.clientY - r.top);
     const wasIdle = !state.voyage!.waypoints.length;
     ctx.act((s) => {
       addWaypoint(s, p.x, p.y);
@@ -234,18 +233,10 @@ function startGame(state: GameState) {
         s.alert = null;
       }
     });
-  });
-  chart.canvas.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
+  };
+  chart.onRightTap = () => {
     if (state.mode === 'sea') ctx.act(removeLastWaypoint);
-  });
-  chart.canvas.addEventListener('mousemove', (e) => {
-    const r = chart.canvas.getBoundingClientRect();
-    chart.hover = chart.toCell(e.clientX - r.left, e.clientY - r.top);
-  });
-  chart.canvas.addEventListener('mouseleave', () => {
-    chart.hover = null;
-  });
+  };
 
   const onKey = (e: KeyboardEvent) => {
     const target = e.target as HTMLElement;
@@ -265,7 +256,7 @@ function startGame(state: GameState) {
     } else if (e.key === '1' || e.key === '2' || e.key === '3') {
       ctx.setSpeed(Number(e.key) - 1);
     } else if (e.key === 'h' || e.key === 'H') {
-      ctx.act(courseHome);
+      ctx.act((s) => courseHome(s));
     } else if (e.key === 'Backspace') {
       ctx.act(removeLastWaypoint);
     }

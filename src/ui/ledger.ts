@@ -2,7 +2,10 @@ import { CONFIG } from '../game/config';
 import {
   cargoCap,
   cargoUsed,
+  chartPrice,
+  currentPort,
   daysOfStores,
+  knownPorts,
   formatDate,
   isSecret,
   money,
@@ -31,7 +34,19 @@ import {
   upgradeList,
   voyageCost,
 } from '../game/economy';
-import { canGoAshore, canPatch, clearCourse, courseHome, deliverableQty, goAshore, patchHull, regionShare, setRations, togglePause } from '../game/sea';
+import {
+  canGoAshore,
+  canPatch,
+  clearCourse,
+  contractElapsed,
+  courseHome,
+  deliverableQty,
+  goAshore,
+  patchHull,
+  regionShare,
+  setRations,
+  togglePause,
+} from '../game/sea';
 import type { Contract, GameState } from '../game/types';
 import { button, h } from './dom';
 
@@ -114,9 +129,13 @@ function seaLedger(ctx: UiContext): HTMLElement {
     h(
       'div',
       { class: 'row wrap' },
-      button(`Turn for home · ${Number.isFinite(v.homeDays) ? `${v.homeDays} ${v.homeDays === 1 ? 'day' : 'days'}` : 'no charted route'}`, () => act(courseHome), {
-        disabled: !Number.isFinite(v.homeDays) ? 'No charted route home' : false,
-        title: 'H',
+      ...knownPorts(state).map((port) => {
+        const d = v.portDays[port.id];
+        const label = port.id === 0 ? 'Turn for home' : `Make for ${port.name}`;
+        return button(`${label} · ${Number.isFinite(d) ? `${d} ${d === 1 ? 'day' : 'days'}` : 'no charted route'}`, () => act((s) => courseHome(s, port.id)), {
+          disabled: !Number.isFinite(d) ? `No charted route to ${port.name}` : false,
+          title: port.id === v.homePort ? 'H' : undefined,
+        });
       }),
       button('Clear course', () => act(clearCourse), { kind: 'quiet', disabled: !v.waypoints.length ? 'No course plotted' : false }),
     ),
@@ -172,7 +191,7 @@ function seaLedger(ctx: UiContext): HTMLElement {
             ? 'Past the point of no return: stores run out before home. Find land and forage.'
             : left <= v.homeDays + 3
               ? `Provisions reach the point of no return in ${Math.max(0, Math.floor(left - v.homeDays))} days.`
-              : `Home is ${Number.isFinite(v.homeDays) ? v.homeDays : '?'} days away. ${ship.rations === 'short' ? 'Short rations.' : ''}`,
+              : `${state.world.ports[v.homePort].name} is ${Number.isFinite(v.homeDays) ? v.homeDays : '?'} days away. ${ship.rations === 'short' ? 'Short rations.' : ''}`,
         warn: left <= v.homeDays + 3,
       }),
       gauge({
@@ -190,22 +209,25 @@ function seaLedger(ctx: UiContext): HTMLElement {
 }
 
 function contractStatus(state: GameState, c: Contract) {
-  const v = state.voyage!;
+  const elapsed = contractElapsed(state, c);
+  const late = elapsed > c.deadline;
+  const to = state.world.ports[c.to];
   let progress = '';
   if (c.kind === 'chart_region' && c.target) progress = `${Math.round(regionShare(state, c.target) * 100)}% of 60% charted`;
-  if (c.kind === 'find_land') progress = v.days <= (c.withinDays ?? 0) ? `${(c.withinDays ?? 0) - v.days} days left to sight new land` : 'Too late to find land for this contract';
-  if (c.kind === 'find_resource' && c.resource) progress = `${deliverableQty(state)} of ${c.resource.qty} units aboard`;
-  const late = v.days > c.deadline;
+  if (c.kind === 'find_land') progress = elapsed <= (c.withinDays ?? 0) ? `${(c.withinDays ?? 0) - elapsed} days left to sight new land` : 'Too late to find land for this contract';
+  if (c.kind === 'find_resource' && c.resource) progress = `${deliverableQty(state, c)} of ${c.resource.qty} units aboard`;
   return h(
     'section',
-    { class: `contract-status section${v.objectiveDone ? ' done' : ''}` },
+    { class: `contract-status section${c.done ? ' done' : ''}` },
     h('p', { class: 'label' }, `Contract: ${c.title}`),
     h(
       'p',
-      { class: `caption${v.objectiveDone ? ' safe' : ''}` },
-      v.objectiveDone ? 'Objective reached. Return home to claim the bonus.' : progress,
+      { class: `caption${c.done ? ' safe' : ''}` },
+      c.done ? `Objective reached. Make for ${state.world.ports[c.to].name} to claim the bonus.` : progress,
     ),
-    h('p', { class: `caption${late ? ' risk' : ' muted'}` }, late ? `Overdue: the deadline was day ${c.deadline}.` : `Home by day ${c.deadline} of the voyage · bonus ${money(c.bonus)}`),
+    h('p', { class: `caption${late ? ' risk' : ' muted'}` }, late
+        ? `Overdue: it was due at ${to.name} ${elapsed - c.deadline} days ago.`
+        : `Due at ${to.name} in ${c.deadline - elapsed} days · bonus ${money(c.bonus)}`),
   );
 }
 
@@ -298,7 +320,7 @@ function portLedger(ctx: UiContext): HTMLElement {
     h(
       'div',
       { class: 'ledger-head' },
-      h('h2', { class: 'heading' }, state.world.portName),
+      h('h2', { class: 'heading' }, currentPort(state).name),
       h('p', { class: 'caption muted' }, `${formatDate(state.day)} · in port`),
     ),
     h(
@@ -476,9 +498,9 @@ export function chartCaseList(ctx: UiContext, only: number[] | null) {
           h(
             'div',
             { class: 'caption muted' },
-            h('span', { class: 'money' }, money(item.value)),
+            h('span', { class: 'money' }, money(chartPrice(state, item))),
             site
-              ? ` · cargo ${money(unitPrice(site))} a unit while secret, ${money(unitPrice({ ...site, knownBy: CONFIG.publicKnownBy }))} once sold · about ${Math.round(secretRisk(state, site) * 100)}% a season that others find it`
+              ? ` · cargo ${money(unitPrice(site, currentPort(state)))} a unit here while secret, ${money(unitPrice({ ...site, knownBy: CONFIG.publicKnownBy }, currentPort(state)))} once sold · about ${Math.round(secretRisk(state, site) * 100)}% a season that others find it`
               : '',
           ),
           kept ? h('div', { class: 'caption safe' }, `Kept secret: ${item.label}`) : null,
@@ -507,11 +529,26 @@ export function cargoBlock(ctx: UiContext) {
     { class: 'cargo' },
     h('h3', { class: 'label' }, 'Cargo'),
     ...state.ship.cargo.map((l) => {
+      if (l.type === 'goods') return h('p', { class: 'caption' }, `${l.qty} units of the patron’s goods (not ours to sell)`);
       const site = state.world.sites[l.siteId];
-      return h('p', { class: 'caption' }, `${l.qty} units of ${CONFIG.resources[l.type].label.toLowerCase()} at ${money(unitPrice(site))}${isSecret(site) ? ' (secret route, full price)' : ` (known to ${site.knownBy} ships)`}`);
+      return h(
+        'p',
+        { class: 'caption' },
+        `${l.qty} units of ${CONFIG.resources[l.type].label.toLowerCase()} at ${money(unitPrice(site, currentPort(state)))} here${isSecret(site) ? ' (secret route, full price)' : ` (known to ${site.knownBy} ships)`}`,
+      );
     }),
-    button(['Sell cargo · ', h('span', { class: 'money' }, money(cargoValue(state)))], () => act(sellCargo), { kind: 'primary' }),
+    state.ship.cargo.some((l) => l.type !== 'goods')
+      ? button(['Sell cargo · ', h('span', { class: 'money' }, money(cargoValue(state)))], () => act(sellCargo), { kind: 'primary' })
+      : null,
+    knownPorts(state).length > 1 ? marketNote(state) : null,
   );
+}
+
+/** Each market's appetite: what sells well here, compared with the other port. */
+function marketNote(state: GameState) {
+  const port = currentPort(state);
+  const rows = (['timber', 'furs', 'spice', 'pearls'] as const).map((t) => `${CONFIG.resources[t].label} ×${port.prices[t].toFixed(1)}`);
+  return h('p', { class: 'caption muted' }, `Market at ${port.name}: ${rows.join(', ')}.`);
 }
 
 function financierTab(ctx: UiContext) {
