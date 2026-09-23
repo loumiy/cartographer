@@ -86,6 +86,7 @@ A second port in the far corner of the first sea, with its own name and quay. It
   The numbers are placeholders for tuning. The rule is that each port pays well for what grows far from it.
 - **Its own chart buyer:** each Admiralty office pays more for charts of waters near the other port (information it can't get locally), and less for its own.
 - **Voyages end at either port.** Wages, contracts and sell-or-keep work the same at both. The ship stays where it docked; the next voyage starts there.
+- **Charts are sold once:** a chart sold at either Admiralty becomes public at both ports at once, and neither will buy it again.
 - **Seasonal payments:** if any debt is left, the financier has an agent at both ports, and payments are collected at whichever one the ship reaches.
 
 ## Contracts
@@ -107,14 +108,14 @@ Every contract names two ports: where it's signed and where it ends. The contrac
 - **Founding:** a new landfall choice at a surveyed site: *"Found a trading post."* It costs money plus materials carried in the hold (for example £400 and 15 units of timber). Posts can only be built on sites you surveyed.
 - **Output:** a post gathers its site's cargo into a warehouse each season, up to a cap. You collect it on a visit; there's no need to strip the site by hand.
 - **A forward base:** at a post you can buy stores at a markup and repair the hull. It counts as shelter in storms, and the point-of-no-return estimate treats it as a way home.
-- **Upkeep:** each post needs a supply run every few seasons (timber and stores delivered). Without one, output falls, and after a long neglect the post is abandoned and its buildings are lost.
+- **Upkeep:** neglect is the only threat to a post in chapter 2. Each post needs a supply run every few seasons (timber and stores delivered). Without one, output falls, and after a long neglect the post is abandoned and its buildings are lost.
 - **Secrets:** a post is visible. Building on a secret site doubles its chance each season of being found. You trade secrecy for steady output.
 
 ### Routes and a second ship
 
 - **Buying ships:** the shipwright sells a larger ship (a brig): a bigger hold, more crew, a stronger hull and more stores. It covers the doc's deferred "ship tiers" with one step up.
-- **Putting a ship to work:** you still captain one ship. The other can be laid up in port or put on a route: a charted sequence of ports and posts.
-- **Route income:** a ship on a route earns each season, in the background. Income is based on the cargo moved and the price difference between the ends, less wages and a share for its master.
+- **Putting a ship to work:** you still captain one ship, and it can be either one: take the brig and leave the old ship on a route, or the other way round. The other ship can be laid up in port or put on a route: a charted sequence of ports and posts.
+- **Route income:** a ship on a route earns each season, fully automatically: no questions, no micromanagement. Income is based on the cargo moved and the price difference between the ends, less wages and a share for its master.
 - **Route risk:** each season there's a chance the route ship takes damage or is lost. The chance rises with known hazards along the route, and falls if the route follows charted coast. Uncharted legs can't be assigned: a route must run over your chart.
 - **Seeing it all:** the ledger gains a **Holdings** tab listing posts, routes, ships, their last season's income, and what needs attention.
 
@@ -165,10 +166,10 @@ Between voyages, each season settles the holdings: posts gather cargo and route 
 
 - [x] **Should the player be told which corner?** No. The far port is a secret to be discovered: no rumour, no hint in the log or on the contract board.
 - [x] **Is the reserved coast a hint before it's sighted?** No. It's plain land until sighted, like everything else.
-- [ ] **Do charts sold at one port become public at both?** Simplest: yes. More interesting: news travels slowly, so a chart sold east reaches home a season later, and you can sell the same coast to both Admiralties if you're quick.
-- [ ] **Can the player captain the brig and leave the old ship on a route,** or is the route ship always the smaller one?
-- [ ] **Do posts ever face anything worse than neglect?** Storms, rivals, or (with chapter 3's peoples) the question of whose land it is. Recommended: neglect only in chapter 2.
-- [ ] **How much of the route income is automatic?** Fully automatic is simplest. A light version asks one question per route per season ("Carry furs or timber?").
+- [x] **Do charts sold at one port become public at both?** Yes, at once. A chart can be sold only once.
+- [x] **Can the player captain the brig and leave the old ship on a route?** Yes. Either ship can captain or run a route.
+- [x] **Do posts ever face anything worse than neglect?** No: neglect only in chapter 2. Storms, rivals and the question of whose land it is wait for later chapters.
+- [x] **How much of the route income is automatic?** All of it. Routes earn and take their risks each season with no questions asked; results appear in the port report and on the Holdings tab.
 
 ## Deferred
 
