@@ -4,46 +4,61 @@ Sep 23, 2026 · Draft
 
 ## Overview
 
-In V1 you pay for your ship by charting the first sea. Chapter 2 starts when your charts turn into property: you reach the far side of the first sea, find a second port there, and the world grows to six times its size. From then on you trade between two ports, build trading posts at the sites you found, and put ships to work on routes you charted.
+In V1 you pay for your ship by charting the first sea. Chapter 2 starts when your charts turn into property: you cross the first sea, find a second port in its far corner, and the world grows to four times its size. From then on you trade between two ports, build trading posts at the sites you found, and put ships to work on routes you charted.
 
 **Design pillars**
 
 - **Charts become holdings.** A kept secret used to pay off only while you sailed it yourself. Now you can build on it: a post, then a route, then a ship that runs the route without you.
-- **The world is bigger than the first chart.** Crossing the first sea is the chapter's opening set piece, and it opens a sea five times larger.
+- **The world is bigger than the first chart.** Crossing the first sea is the chapter's opening set piece, and it opens three more seas the size of the first.
 - **Every port is a market.** Two ports with different prices for cargo and charts make where you end a voyage a decision.
 
 **Chapter 2 scope:** the far side and map expansion, a second port with its own market, contracts that name the port where they end, trading posts, supply runs, a second ship that can be bought and put on a route, and pan/zoom on the chart. There is still no win condition: V1's debt milestone stays, and play goes on without an end.
 
 ## The far side
 
+### The far port's corner
+
+Each seed places the far port in either the **north-east** or the **south-east** corner of the first sea. The port sits on a mainland coast that runs along the outer edge of the world, the way home's coast runs along the west edge. Placing it on an edge, not out at sea, keeps it off an island: it's the edge of a second continent, and that continent carries on into the new seas.
+
+- **Guaranteed coast:** world generation reserves that coast, a band of mainland along the north or south edge covering the east part of the first sea, with a sheltered harbour in the corner.
+- **Visible from the start:** the rest of the first sea stays procedural. In V1 play, that coast is just more land on the edge of the chart. Players can see it before they know what's there.
+
 ### Trigger
 
-The first time the ship comes within sight of the east edge of the first sea, the voyage pauses: *"The water changes colour and the swell runs long from the east. There is more sea beyond the chart."* The chart grows and the far port comes into view on the coast ahead.
+The first time the ship sights the far port, the voyage pauses: *"Smoke on the shore, and masts behind a headland. There is a town here, and the coast runs on past the edge of our chart."* The port is marked on the chart and the world grows.
 
-The trip should be hard the first time. Crossing the first sea takes about 40 days in open water, which is roughly a full hold of stores at V1 capacity. Players get there by buying enlarged stores, stopping to forage, or cutting rations. After the far port is found, the trip becomes one leg of a route.
+The trip should be hard the first time. Reaching the far corner takes about 40 days in open water, roughly a full hold of stores at V1 capacity. Players get there by buying enlarged stores, stopping to forage, or cutting rations. After the far port is found, the trip becomes one leg of a route.
 
 ### The larger map
 
-The world becomes a 2 × 3 grid of squares, each the size of the V1 sea (120 × 84 cells). The first sea is the middle square of the west column. Home stays on the west edge, so the map grows north, south and east, not west.
+The world becomes a 2 × 2 grid of squares, each the size of the V1 sea (120 × 84 cells). It grows east, and away from the far port's edge:
+
+- **Far port in the south-east:** the map grows east and north. The first sea becomes the bottom-left square, and the far port sits on the south edge of the world.
+- **Far port in the north-east:** the map grows east and south. The first sea becomes the top-left square, and the far port sits on the north edge of the world.
 
 ```
-+-------------+-------------+
-|  North-west |  North-east |   new
-+-------------+-------------+
-|  First sea  |  East sea   |   first sea: V1 map, unchanged
-|  (home) ->  |             |   east sea: new
-+-------------+-------------+
-|  South-west |  South-east |   new
-+-------------+-------------+
+Far port south-east               Far port north-east
+
++-----------+-----------+         +-----------+-----------+
+|   North   | North-east|         | First sea |   East    |
+|   (new)   |   (new)   |         | home ->  P|   (new)   |
++-----------+-----------+         +-----------+-----------+
+| First sea |   East    |         |   South   | South-east|
+| home ->  P|   (new)   |         |   (new)   |   (new)   |
++-----------+-----------+         +-----------+-----------+
+
+P = far port, in the corner, on the coast along the world's edge
 ```
 
-- **Size:** 240 × 252 cells in total. Everything the player has charted keeps its position; only the coordinates shift (y + 84).
-- **One seed:** the whole 2 × 3 world is generated from the seed with noise in world coordinates, so coasts run unbroken across square edges. The first sea is the same map a V1 player already knows.
-- **Sailing limits:** until the far side is reached, the ship can't leave the first sea. The other squares exist but are off the edge of the chart.
+This way the new seas always open away from the port's continent, and the port faces open water on two sides: back west toward home, and out into the new seas.
+
+- **Size:** 240 × 168 cells in total. If the map grows north, everything the player has charted shifts down (y + 84). If it grows south, coordinates don't change.
+- **One seed:** all four squares are generated from the seed with noise in world coordinates, so coasts run unbroken across square edges.
+- **Sailing limits:** until the far port is found, the ship can't leave the first sea. The other squares exist but are off the edge of the chart.
 - **The new squares have their own character:**
-  - **North:** colder, rich in furs and timber, with ice floes (a new hazard: like reefs, but they drift a cell or two each season).
-  - **South:** warm, rich in spice and pearls, with more storms.
-  - **East:** the richest and most remote, where the difficulty curve keeps rising.
+  - **The new row** (north or south, whichever way the map grew): north is cold, with furs, timber and drifting ice floes (a new hazard, like reefs but moving a cell or two each season). South is warm, with spice, pearls and more storms.
+  - **The east column:** the richest and most remote waters, where the difficulty curve keeps rising. The far port's continent runs along its outer edge.
+  - **The diagonal square** (north-east or south-east): the farthest from both ports, and the richest of all.
 - **Distance:** remoteness is measured from the nearest port, not only from home. The far port starts a second difficulty gradient of its own.
 
 ### The chart gets pan and zoom
@@ -56,7 +71,7 @@ At V1 cell size the full world doesn't fit on screen. The chart gains:
 
 ## The far port
 
-A second port on the far side of the first sea, with its own name and quay.
+A second port in the far corner of the first sea, with its own name and quay. It belongs to another power, which explains why nobody at home has charted the way there.
 
 - **Same services as home:** harbour master (contracts), chandler (outfit), shipwright, Admiralty office and market.
 - **Its own prices:** each port has a price for each cargo, so hauling home or hauling east is a choice:
@@ -139,15 +154,17 @@ Between voyages, each season settles the holdings: posts gather cargo and route 
 
 ## Implementation notes
 
-- **World generation:** move to world coordinates and generate all six squares at game start. Only the first sea is sailable until the far side is reached. V1 saves need a migration: regenerate from the seed, then re-apply the save's charted cells, names and site state at the y + 84 offset. The first sea's terrain will change slightly if the generator changes; accept that and warn the player, or keep the V1 generator for the first sea and blend at the seams.
-- **Rendering:** the chart's cached layer grows six-fold (about 1,900 × 2,000 px at V1 cell size). Split it into one cached canvas per square so a reveal only redraws one tile.
-- **Performance:** A* runs over 60,000 cells instead of 10,000. That's still fast, but cache the route home and recompute it at most once per day, as now.
-- **Save size:** grows six-fold, to about 300 KB of JSON. Fine for localStorage, but pack the charted cells as a bitset.
+- **World generation:** move to world coordinates and generate all four squares at game start. The seed picks the corner (north-east or south-east) first, so the reserved coast and the growth direction are known from day one. Only the first sea is sailable until the far port is found.
+- **Continent coast:** the far port's coast is forced into the generator: a mainland band along the north or south edge from about the first sea's midpoint eastward, continued through the east column. A harbour is cleared in the corner, and a lake-fill check guarantees it connects to home by sea.
+- **V1 saves:** regenerate from the seed and re-apply the save's charted cells, names and site state, offset by y + 84 if the map grows north. The first sea's terrain changes where the reserved coast is added. Accept that and tell the player, or start V1 saves on the new map with their chart and money but no old coast.
+- **Rendering:** the chart's cached layer grows four-fold (about 1,900 × 1,350 px at V1 cell size). Split it into one cached canvas per square so a reveal only redraws one tile.
+- **Performance:** A* runs over 40,000 cells instead of 10,000. That's still fast, but keep recomputing the route home at most once per day, as now.
+- **Save size:** grows four-fold, to about 200 KB of JSON. Fine for localStorage, but pack the charted cells as a bitset.
 
 ## Open questions
 
-- [ ] **Where does the far port sit?** Default above: on the east edge of the first sea, where you arrive, so it's the gateway to the new squares. The alternative is the far east of the new map, which makes finding it a second, longer expedition.
-- [ ] **Is the 2 × 3 reading right?** This doc reads "one square in each direction" as north, south and east of the first sea: two columns and three rows, with nothing west of home.
+- [ ] **Should the player be told which corner?** A rumour at the start ("Traders speak of a town in the north-east") gives the crossing a destination. Leaving it silent makes finding it more of a discovery, but players may search the wrong corner for hours.
+- [ ] **Is the reserved coast charted as coast, or visible as a hint?** Default: it's plain land until sighted, like everything else.
 - [ ] **Do charts sold at one port become public at both?** Simplest: yes. More interesting: news travels slowly, so a chart sold east reaches home a season later, and you can sell the same coast to both Admiralties if you're quick.
 - [ ] **Can the player captain the brig and leave the old ship on a route,** or is the route ship always the smaller one?
 - [ ] **Do posts ever face anything worse than neglect?** Storms, rivals, or (with chapter 3's peoples) the question of whose land it is. Recommended: neglect only in chapter 2.
