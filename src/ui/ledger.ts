@@ -69,7 +69,7 @@ function overLedger(ctx: UiContext): HTMLElement {
     h(
       'div',
       { class: 'ledger-head' },
-      h('h2', { class: 'heading' }, state.outcome === 'won' ? 'The ship is yours' : 'The voyage is over'),
+      h('h2', { class: 'heading' }, 'The voyage is over'),
       h('p', { class: 'caption muted' }, formatDate(state.day)),
     ),
     stats(state),
@@ -234,9 +234,13 @@ function stats(state: GameState) {
   ];
   if (v) rows.push(['Charted this voyage', `${v.newCells} sq. leagues`]);
   rows.push(['Purse', money(state.cash)]);
-  rows.push(['Debt', `${money(state.debt)}${state.paymentsDue ? ` · ${money(state.paymentsDue)} due` : ''}`]);
-  const next = seasonOf(state.day).nextSeasonDay;
-  rows.push(['Next payment', `${money(Math.min(state.paymentPerSeason, state.debt))} in ${next - state.day} days`]);
+  if (state.debt > 0) {
+    rows.push(['Debt', `${money(state.debt)}${state.paymentsDue ? ` · ${money(state.paymentsDue)} due` : ''}`]);
+    const next = seasonOf(state.day).nextSeasonDay;
+    rows.push(['Next payment', `${money(Math.min(state.paymentPerSeason, state.debt))} in ${next - state.day} days`]);
+  } else {
+    rows.push(['Ship', 'Owned outright']);
+  }
   return h(
     'dl',
     { class: 'stats section' },
@@ -514,6 +518,16 @@ function financierTab(ctx: UiContext) {
   const { state, act } = ctx;
   const next = seasonOf(state.day).nextSeasonDay;
   const paid = state.debtStart - state.debt;
+  if (state.debt <= 0) {
+    return h(
+      'div',
+      null,
+      h('p', { class: 'caption muted' }, 'The bond is torn up. The ship is ours outright and no more payments fall due.'),
+      gauge({ label: 'Debt repaid', value: money(state.debtStart), share: 1, marks: [], caption: '', warn: false }),
+      state.stats.paidOffDay !== undefined ? row('Paid off', `${formatDate(state.stats.paidOffDay)}, after ${state.voyagesSailed} voyages.`) : null,
+      stats(state),
+    );
+  }
   return h(
     'div',
     null,

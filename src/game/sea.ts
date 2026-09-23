@@ -123,12 +123,12 @@ function checkLost(state: GameState): boolean {
   return true;
 }
 
-export function gameOver(state: GameState, outcome: 'won' | 'lost', title: string, body: string) {
+export function gameOver(state: GameState, outcome: 'lost', title: string, body: string) {
   if (state.mode === 'over') return;
   state.mode = 'over';
   state.outcome = outcome;
   state.pending = [{ kind: 'gameover', title, body, choices: [{ id: 'new', label: 'Begin a new game' }] }];
-  log(state, `${title}. ${body}`, outcome === 'won' ? 'good' : 'bad');
+  log(state, `${title}. ${body}`, 'bad');
 }
 
 // ---------------------------------------------------------------------------

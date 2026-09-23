@@ -243,7 +243,7 @@ export interface GameState {
   voyage: Voyage | null;
   voyagesSailed: number;
   mode: 'port' | 'sea' | 'over';
-  outcome: 'won' | 'lost' | null;
+  outcome: 'lost' | null;
   paused: boolean;
   /** Why the voyage is paused, shown in the HUD. */
   alert: string | null;
@@ -255,5 +255,5 @@ export interface GameState {
   /** News that happened while at sea, told on return. */
   news: string[];
   log: LogEntry[];
-  stats: { cellsCharted: number; landmassesNamed: number; earned: number; treasure: number };
+  stats: { cellsCharted: number; landmassesNamed: number; earned: number; treasure: number; paidOffDay?: number };
 }

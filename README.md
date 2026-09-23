@@ -1,6 +1,6 @@
 # Cartographer
 
-An Age-of-Exploration voyage game. You captain one ship into an uncharted, fog-covered sea, chart what you find, and decide whether to sell your charts or keep them secret. Pay off the ship's debt to win.
+An Age-of-Exploration voyage game. You captain one ship into an uncharted, fog-covered sea, chart what you find, and decide whether to sell your charts or keep them secret. Pay off the ship's debt to own her outright, then sail on as long as you like.
 
 This is V1, built from [`docs/design-doc.md`](docs/design-doc.md) and styled per [`docs/style-guide/`](docs/style-guide/README.md).
 
@@ -22,7 +22,7 @@ Add `?seed=anything` to the URL to sail a specific sea. The same seed always mak
 - **At sea**, click the chart to drop waypoints (right-click removes the last). Time runs day by day and stops whenever something needs a decision: land sighted, signs of land, storms, sickness, provisions at half and a quarter, the point of no return, reefs ahead, contract objectives.
 - **Landfall**: send a shore party for stores, survey the coast for timber, furs, spice or pearls, load cargo, and name what you found.
 - **Home**, sell each chart to the Admiralty or keep a resource site secret. Secrets pay full cargo price until someone else finds them.
-- Each season (60 days at sea) the financier wants £200, collected when you reach port. Pay off £2,500 to win. Missing a payment, or losing the ship, ends the game.
+- Each season (60 days at sea) the financier wants £200, collected when you reach port. Pay off £2,500 and the ship is yours: payments stop and the game carries on. Missing a payment, or losing the ship, ends the game.
 
 Keys: <kbd>Space</kbd> sail/heave to, <kbd>1</kbd>–<kbd>3</kbd> time speed, <kbd>H</kbd> turn for home, <kbd>Backspace</kbd> remove last waypoint, <kbd>1</kbd>–<kbd>9</kbd> pick a choice on an event card.
 

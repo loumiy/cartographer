@@ -86,7 +86,7 @@ function showTitle() {
           { class: 'body rules' },
           h('li', null, 'Click the chart to plot a course. The voyage stops when something needs a decision.'),
           h('li', null, 'Provisions are the clock. Every day past halfway is a bet.'),
-          h('li', null, `The financier wants ${money(CONFIG.paymentPerSeason)} a season from a debt of ${money(CONFIG.debt)}. Pay it all to win; miss a payment and lose the ship.`),
+          h('li', null, `The financier wants ${money(CONFIG.paymentPerSeason)} a season from a debt of ${money(CONFIG.debt)}. Miss a payment and lose the ship; pay it all and she is yours, to sail on as long as you like.`),
           h('li', null, 'Contracts are safe money, but the patron owns the chart. Freelance voyages keep everything.'),
         ),
         saved
@@ -94,7 +94,7 @@ function showTitle() {
               'div',
               { class: 'row' },
               button('Continue voyage', () => startGame(saved), { kind: 'primary' }),
-              h('span', { class: 'caption muted' }, `${saved.world.portName}, voyage ${saved.voyagesSailed}, debt ${money(saved.debt)}`),
+              h('span', { class: 'caption muted' }, `${saved.world.portName}, voyage ${saved.voyagesSailed}, ${saved.debt > 0 ? `debt ${money(saved.debt)}` : 'ship owned outright'}`),
             )
           : null,
         h(
@@ -168,7 +168,7 @@ function startGame(state: GameState) {
     topbar.replaceChildren(
       h('span', { class: 'brand' }, 'Cartographer'),
       h('span', { class: 'topbar-stat' }, h('span', { class: 'caption muted' }, 'Purse '), h('span', { class: 'label money' }, money(state.cash))),
-      h('span', { class: 'topbar-stat' }, h('span', { class: 'caption muted' }, 'Debt '), h('span', { class: 'label' }, money(state.debt))),
+      h('span', { class: 'topbar-stat' }, h('span', { class: 'caption muted' }, 'Debt '), h('span', { class: 'label' }, state.debt > 0 ? money(state.debt) : 'Paid off')),
       h('span', { class: 'topbar-stat' }, h('span', { class: 'caption muted' }, 'Reputation '), h('span', { class: 'label' }, String(state.reputation))),
       h('span', { class: 'spacer' }),
       button(lamp ? 'Daylight' : 'Lamplight', () => {

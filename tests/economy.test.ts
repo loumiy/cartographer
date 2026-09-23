@@ -13,6 +13,7 @@ import {
   setSail,
   settle,
 } from '../src/game/economy';
+import { resolve } from '../src/game/sea';
 import { deserialize, newGame, serialize } from '../src/game/state';
 
 function atSea(seed = 'econ') {
@@ -109,11 +110,22 @@ describe('economy', () => {
     expect(t.ship.cargo.length).toBe(0);
   });
 
-  it('paying the debt off wins', () => {
+  it('paying the debt off frees the ship and play goes on', () => {
     const s = newGame('win');
     s.cash = CONFIG.debt + 10;
     payDebt(s, CONFIG.debt);
-    expect(s.outcome).toBe('won');
+    expect(s.debt).toBe(0);
+    expect(s.mode).toBe('port');
+    expect(s.outcome).toBeNull();
+    expect(s.pending[0]?.title).toBe('The ship is yours');
+    resolve(s, 'ok');
+    expect(s.pending.length).toBe(0);
+    // No payments fall due once the debt is gone, and the next voyage can sail.
+    processSeason(s);
+    expect(s.paymentsDue).toBe(0);
+    s.cash = 200;
+    buyProvisions(s, 200);
+    expect(canSail(s)).toBeNull();
   });
 
   it('contracts pay an advance and a bonus on completion', () => {

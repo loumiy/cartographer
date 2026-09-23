@@ -288,12 +288,15 @@ export function payDebt(state: GameState, amount: number) {
   state.paymentsDue = Math.max(0, state.paymentsDue - pay);
   log(state, `Paid ${money(pay)} to the financier. ${money(state.debt)} remains.`, 'info');
   if (state.debt <= 0) {
-    gameOver(
-      state,
-      'won',
-      'The ship is yours',
-      `The last of the debt is paid. The financier tears up the bond, and ${state.world.portName} toasts the captain who charted ${state.stats.cellsCharted} square leagues of the unknown.`,
-    );
+    // Owning the ship is a milestone, not the end: the sea is still there.
+    state.stats.paidOffDay = state.day;
+    state.pending.push({
+      kind: 'notice',
+      title: 'The ship is yours',
+      body: `The last of the debt is paid. The financier tears up the bond, and ${state.world.portName} toasts the captain who charted ${state.stats.cellsCharted} square leagues of the unknown. No more payments fall due: every crown we earn from here is ours.`,
+      choices: [{ id: 'ok', label: 'Sail on' }],
+    });
+    log(state, 'The last of the debt is paid. The ship is ours outright.', 'good');
   }
 }
 
