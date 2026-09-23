@@ -21,7 +21,7 @@ In V1 you pay for your ship by charting the first sea. Chapter 2 starts when you
 Each seed places the far port in either the **north-east** or the **south-east** corner of the first sea. The port sits on a mainland coast that runs along the outer edge of the world, the way home's coast runs along the west edge. Placing it on an edge, not out at sea, keeps it off an island: it's the edge of a second continent, and that continent carries on into the new seas.
 
 - **Guaranteed coast:** world generation reserves that coast, a band of mainland along the north or south edge covering the east part of the first sea, with a sheltered harbour in the corner.
-- **Visible from the start:** the rest of the first sea stays procedural. In V1 play, that coast is just more land on the edge of the chart. Players can see it before they know what's there.
+- **No hints:** nothing tells the player which corner holds the port. The rest of the first sea stays procedural, and the reserved coast is plain land until the ship sights it: in V1 play it's just more coast on the edge of the chart. Finding the port is a discovery, not a destination.
 
 ### Trigger
 
@@ -163,8 +163,8 @@ Between voyages, each season settles the holdings: posts gather cargo and route 
 
 ## Open questions
 
-- [ ] **Should the player be told which corner?** A rumour at the start ("Traders speak of a town in the north-east") gives the crossing a destination. Leaving it silent makes finding it more of a discovery, but players may search the wrong corner for hours.
-- [ ] **Is the reserved coast charted as coast, or visible as a hint?** Default: it's plain land until sighted, like everything else.
+- [x] **Should the player be told which corner?** No. The far port is a secret to be discovered: no rumour, no hint in the log or on the contract board.
+- [x] **Is the reserved coast a hint before it's sighted?** No. It's plain land until sighted, like everything else.
 - [ ] **Do charts sold at one port become public at both?** Simplest: yes. More interesting: news travels slowly, so a chart sold east reaches home a season later, and you can sell the same coast to both Admiralties if you're quick.
 - [ ] **Can the player captain the brig and leave the old ship on a route,** or is the route ship always the smaller one?
 - [ ] **Do posts ever face anything worse than neglect?** Storms, rivals, or (with chapter 3's peoples) the question of whose land it is. Recommended: neglect only in chapter 2.
