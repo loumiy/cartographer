@@ -1,5 +1,5 @@
 import { CONFIG } from '../game/config';
-import { bounds, currentPort, daysOfStores, isSecret, knownPorts, sightRadius, unitPrice } from '../game/core';
+import { bounds, currentPort, daysOfStores, isSecret, knownPorts, sightRadius, unitPrice, openSpeed } from '../game/core';
 import { Cell, type GameState, type Rect, type Site } from '../game/types';
 import { readPalette, type Palette } from './palette';
 
@@ -676,7 +676,7 @@ export class Chart {
       for (const port of ports) {
         const d = this.toScreen({ x: port.dock.x + 0.5, y: port.dock.y + 0.5 });
         ctx.beginPath();
-        ctx.arc(d.x, d.y, days * CONFIG.speedOpen * c, 0, Math.PI * 2);
+        ctx.arc(d.x, d.y, days * openSpeed(state) * c, 0, Math.PI * 2);
         ctx.stroke();
       }
       ctx.setLineDash([]);

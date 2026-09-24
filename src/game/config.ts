@@ -62,10 +62,14 @@ export const CONFIG = {
   /** Enlarged-hold refits, cargo units added per level. */
   holdLevels: [8, 8, 8],
 
-  /** Hulls. A brig carries more and takes storm and reef damage less hard. */
+  /**
+   * Hulls. The brig is the explorer's ship: far more stores (and refits that add half again on her
+   * bigger hull), faster in open water, a league more sight from her taller masts, and she takes
+   * storm and reef damage less hard. Fully refitted she carries about twice a pinnace's range.
+   */
   ships: {
-    pinnace: { label: 'Pinnace', stores: 500, hold: 16, crewMax: 20, toughness: 1, cost: 700 },
-    brig: { label: 'Brig', stores: 800, hold: 32, crewMax: 30, toughness: 0.7, cost: 1600 },
+    pinnace: { label: 'Pinnace', stores: 500, hold: 16, crewMax: 20, toughness: 1, cost: 700, refitScale: 1, openSpeed: 1, sight: 0 },
+    brig: { label: 'Brig', stores: 1400, hold: 32, crewMax: 30, toughness: 0.7, cost: 1600, refitScale: 1.5, openSpeed: 1.2, sight: 1 },
   },
 
   post: {

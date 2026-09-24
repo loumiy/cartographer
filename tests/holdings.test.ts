@@ -185,3 +185,22 @@ describe('milestones', () => {
     expect(post.warehouse).toBeGreaterThan(0);
   });
 });
+
+describe('the brig as an explorer', () => {
+  it('outranges, outsails and outsees a pinnace', async () => {
+    const { openSpeed, sightRadius } = await import('../src/game/core');
+    const s = newGame('brig-range');
+    const pinnace = { cap: provisionCap(s), speed: openSpeed(s), sight: sightRadius(s) };
+    s.ship.refits.stores = CONFIG.storesLevels.length;
+    const fullPinnace = provisionCap(s);
+    s.ship.kind = 'brig';
+    s.ship.refits.stores = 0;
+    // A new brig carries more than a fully refitted pinnace...
+    expect(provisionCap(s)).toBeGreaterThan(fullPinnace);
+    s.ship.refits.stores = CONFIG.storesLevels.length;
+    // ...and fully refitted, about twice as much.
+    expect(provisionCap(s)).toBeGreaterThanOrEqual(2 * fullPinnace);
+    expect(openSpeed(s)).toBeGreaterThan(pinnace.speed);
+    expect(sightRadius(s)).toBe(pinnace.sight + 1);
+  });
+});

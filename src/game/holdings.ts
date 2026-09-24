@@ -177,7 +177,7 @@ export function cannotCommand(state: GameState, v: Vessel): string | null {
   if (state.mode !== 'port') return 'Only in port';
   if (v.routeId !== null) return 'She is working a route';
   if (v.portId !== state.portId) return `She lies at ${state.world.ports[v.portId].name}`;
-  const hold = CONFIG.ships[v.kind].hold + levelsSum(CONFIG.holdLevels, v.refits.hold);
+  const hold = CONFIG.ships[v.kind].hold + Math.round(levelsSum(CONFIG.holdLevels, v.refits.hold) * CONFIG.ships[v.kind].refitScale);
   if (cargoUsed(state) > hold) return 'Her hold is too small for our cargo';
   return null;
 }

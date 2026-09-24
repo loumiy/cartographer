@@ -5,6 +5,8 @@ import {
   chartPrice,
   crewMax,
   currentPort,
+  openSpeed,
+  sightRadius,
   daysOfStores,
   knownPorts,
   formatDate,
@@ -470,7 +472,7 @@ function outfitTab(ctx: UiContext) {
     ),
     row(
       `Provisions: ${days} days`,
-      `Room for ${capDays} days at this crew. 10 days cost ${money(cost10)}. Loaded, the stores reach about ${Math.round((days * CONFIG.speedOpen) / 2)} leagues out and back in open water; forage on the way to go farther.`,
+      `Room for ${capDays} days at this crew. 10 days cost ${money(cost10)}. Loaded, the stores reach about ${Math.round((days * openSpeed(state)) / 2)} leagues out and back in open water; forage on the way to go farther.`,
       button('−10', () => act((s) => sellProvisions(s, perDay * 10)), { kind: 'quiet', disabled: days < 10 ? 'Nothing to sell' : false, title: 'Sell back at half price' }),
       button('+10', () => act((s) => buyProvisions(s, perDay * 10)), { disabled: days >= capDays ? 'Stores are full' : state.cash < cost10 ? 'Not enough money' : false }),
       button('Fill', () => act((s) => buyProvisions(s, provisionCap(s))), { disabled: days >= capDays ? 'Stores are full' : false }),
@@ -504,11 +506,11 @@ function shipwrightTab(ctx: UiContext) {
           : button(`Buy · ${money(u.cost)}`, () => act((s) => buyUpgrade(s, u.key)), { disabled: state.cash < u.cost ? 'Not enough money' : false }),
       ),
     ),
-    h('p', { class: 'caption muted' }, `Sight: ${CONFIG.baseSight + state.upgrades.spyglass} leagues · stores ${provisionCap(state)} crew-days · hold ${cargoCap(state)} units.`),
+    h('p', { class: 'caption muted' }, `Sight: ${sightRadius(state)} leagues · stores ${provisionCap(state)} crew-days · hold ${cargoCap(state)} units.`),
     h('h3', { class: 'label section' }, 'Ships for sale'),
     row(
       'A brig',
-      `A larger hull: ${CONFIG.ships.brig.hold} units of hold, ${CONFIG.ships.brig.stores} crew-days of stores, up to ${CONFIG.ships.brig.crewMax} crew, and storms and reefs hurt her less. Lies here until you take command or put her on a route.`,
+      `The explorer’s ship: ${CONFIG.ships.brig.stores} crew-days of stores (${Math.round(CONFIG.ships.brig.stores / CONFIG.crewStart)} days for ${CONFIG.crewStart} crew, and refits add half again), ${Math.round((CONFIG.ships.brig.openSpeed - 1) * 100)}% faster in open water, a league more sight from her taller masts, ${CONFIG.ships.brig.hold} units of hold, up to ${CONFIG.ships.brig.crewMax} crew, and storms and reefs hurt her less. Lies here until you take command or put her on a route.`,
       button(`Buy · ${money(CONFIG.ships.brig.cost)}`, () => act((s) => buyShip(s, 'brig')), { disabled: state.cash < CONFIG.ships.brig.cost ? 'Not enough money' : false }),
     ),
     row(
