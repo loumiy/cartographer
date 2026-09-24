@@ -1,6 +1,6 @@
 # Cartographer — Chapter 2 Design Doc: The Far Shore
 
-Sep 23, 2026 · Draft
+Sep 23, 2026 · loumiy
 
 ## Overview
 

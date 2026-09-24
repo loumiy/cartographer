@@ -1,7 +1,7 @@
 {
   "name": "cartographer",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "An Age-of-Exploration voyage game: chart a fog-covered sea, then sell your charts or keep them secret.",
   "type": "module",
   "scripts": {
@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "package": "npm run build && rm -f cartographer-itch.zip && cd dist && zip -qr ../cartographer-itch.zip ."
   },
   "devDependencies": {
     "typescript": "^5.9.3",

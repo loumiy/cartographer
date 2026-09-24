@@ -12,6 +12,7 @@ npm run dev        # play at http://localhost:5173
 npm test           # game-logic tests (vitest)
 npm run typecheck
 npm run build      # static site in dist/
+npm run package    # dist/ zipped as cartographer-itch.zip, ready for itch.io
 ```
 
 Add `?seed=anything` to the URL to sail a specific sea. The same seed always makes the same map. Games save to the browser automatically.
@@ -36,7 +37,18 @@ Add `?seed=anything` to the URL to sail a specific sea. The same seed always mak
 - The **Holdings** tab lists posts, ships, routes and milestones. There is no ending: milestones run up to a Crown charter for a trading company.
 - Drag to pan the chart, scroll or pinch to zoom, and use the rose button to centre on the ship.
 
+New captains get one-time hints at the head of the ledger (before the first voyage, plotting a course, provisions, going ashore, selling charts, the financier). "No more hints" turns them off for that game. Switching tabs or windows heaves the ship to, so the voyage waits for you.
+
 Keys: <kbd>Space</kbd> sail/heave to, <kbd>1</kbd>–<kbd>3</kbd> time speed, <kbd>H</kbd> turn for home, <kbd>Backspace</kbd> remove last waypoint, <kbd>1</kbd>–<kbd>9</kbd> pick a choice on an event card.
+
+## Publishing on itch.io
+
+1. Get the zip. Either let GitHub build it: every push to `main` (or **Run workflow** under Actions → Package for itch.io) runs the tests and builds the game; open the run and download **cartographer-itch** from its Artifacts. That download is the zip to upload, as is. Or run `npm run package` locally, which zips `dist/` into `cartographer-itch.zip`. Every path in the build is relative, so it runs from any folder.
+2. On itch.io, create a new project with **Kind of project: HTML**, upload the zip and tick **This file will be played in the browser**.
+3. Set the embed to **1280 × 800**, tick **Fullscreen button**, and leave **Mobile friendly** off: the game is built for a mouse and a desktop screen.
+4. Games save in the player's browser. The title screen can export a save to a file, import one, or delete it. A damaged save is refused with a message, not a blank screen.
+
+The version shown on the title screen comes from `package.json`: bump it for each upload so feedback can say which build it's about.
 
 ## Answers to the design doc's open questions
 
@@ -54,3 +66,9 @@ Keys: <kbd>Space</kbd> sail/heave to, <kbd>1</kbd>–<kbd>3</kbd> time speed, <k
 - `src/game/`: all rules, no DOM. `config.ts` holds every tuning number; `world.ts` generates the four seas; `sea.ts` runs voyages, events and landfall; `economy.ts` handles ports, contracts, selling, seasons and debt; `holdings.ts` handles posts, ships, routes and milestones; `state.ts` creates, saves and migrates games (V1 saves are redrawn onto the larger world).
 - `src/ui/`: `chart.ts` draws the canvas chart with pan and zoom; `ledger.ts` is the sidebar; `card.ts` is the event card.
 - `tests/`: world generation, economy, voyages, the far shore, holdings, and bots that play many voyages end to end.
+
+## Credits
+
+Made by loumiy, who also drew up the style guide. © 2026 loumiy, all rights reserved.
+
+Set in [IM Fell English](https://fonts.google.com/specimen/IM+Fell+English), digitised by Igino Marini, and [Alegreya Sans](https://fonts.google.com/specimen/Alegreya+Sans) by Huerta Tipográfica, both under the SIL Open Font License.

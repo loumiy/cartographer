@@ -23,13 +23,58 @@ function storage(): Storage | null {
   }
 }
 
-function loadSave(): GameState | null {
+function readSaveText(): string | null {
   try {
-    const text = storage()?.getItem(SAVE_KEY);
-    return text ? deserialize(text) : null;
+    return storage()?.getItem(SAVE_KEY) ?? null;
   } catch {
     return null;
   }
+}
+
+/** The saved game, 'unreadable' if there is a save that can't be loaded, or null if there is none. */
+function loadSave(): GameState | 'unreadable' | null {
+  const text = readSaveText();
+  if (!text) return null;
+  return deserialize(text) ?? 'unreadable';
+}
+
+function deleteSave() {
+  try {
+    storage()?.removeItem(SAVE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Hand the player their save as a file, to keep or to carry to another browser. */
+function exportSave(text: string, seed: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = h('a', { href: url, download: `cartographer-${seed.replace(/[^\w-]+/g, '_')}.json` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function importSave(onDone: (message: string | null) => void) {
+  const input = h('input', { type: 'file', accept: '.json,application/json' });
+  input.addEventListener('change', () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    file.text().then(
+      (text) => {
+        const state = deserialize(text);
+        if (!state) {
+          onDone('That file isn’t a Cartographer save this version can read.');
+          return;
+        }
+        writeSave(state);
+        onDone(null);
+      },
+      () => onDone('That file couldn’t be read.'),
+    );
+  });
+  input.click();
 }
 
 function writeSave(state: GameState) {
@@ -65,9 +110,11 @@ function randomSeed(): string {
   return `${pick()}-${pick()}-${Math.floor(Math.random() * 900 + 100)}`;
 }
 
-function showTitle() {
+function showTitle(message: string | null = null) {
   const params = new URLSearchParams(location.search);
-  const saved = loadSave();
+  const loaded = loadSave();
+  const saved = loaded === 'unreadable' ? null : loaded;
+  const saveText = loaded ? readSaveText() : null;
   const seedInput = h('input', { class: 'name-input', type: 'text', value: params.get('seed') ?? randomSeed(), 'aria-label': 'Chart seed', maxlength: 40 });
   const start = () => startGame(newGame(seedInput.value.trim() || randomSeed()));
   seedInput.addEventListener('keydown', (e) => {
@@ -90,14 +137,28 @@ function showTitle() {
           h('li', null, `The financier wants ${money(CONFIG.paymentPerSeason)} a season from a debt of ${money(CONFIG.debt)}. Miss a payment and lose the ship; pay it all and she is yours, to sail on as long as you like.`),
           h('li', null, 'Contracts are safe money, but the patron owns the chart. Freelance voyages keep everything.'),
         ),
+        message ? h('p', { class: 'alert', role: 'status' }, message) : null,
         saved
           ? h(
               'div',
               { class: 'row' },
-              button('Continue voyage', () => startGame(saved), { kind: 'primary' }),
+              button('Continue voyage', () => {
+                try {
+                  startGame(saved);
+                } catch (err) {
+                  console.error(err);
+                  stopLoop?.();
+                  current = null;
+                  showTitle('The saved game failed to open. Export it to keep a copy, and please report it on the game’s page.');
+                }
+              }, { kind: 'primary' }),
               h('span', { class: 'caption muted' }, `${saved.world.ports[saved.portId].name}, voyage ${saved.voyagesSailed}, ${saved.debt > 0 ? `debt ${money(saved.debt)}` : 'ship owned outright'}`),
             )
           : null,
+        loaded === 'unreadable'
+          ? h('p', { class: 'alert', role: 'status' }, 'The saved game can’t be read: it is damaged, or from a newer version. Export it to keep a copy; beginning a new game replaces it.')
+          : null,
+        saveTools(saveText, saved?.world.seed ?? 'save'),
         h(
           'div',
           { class: 'naming' },
@@ -105,8 +166,48 @@ function showTitle() {
           h('div', { class: 'row' }, seedInput, button('Begin a new game', start, { kind: saved ? 'secondary' : 'primary' })),
           h('p', { class: 'caption muted' }, 'The same seed always makes the same sea. Share it to sail the same waters.'),
         ),
+        about(),
       ),
     ),
+  );
+}
+
+/** Keep the game safe: save it to a file, bring one back, or clear it. */
+function saveTools(saveText: string | null, seed: string): HTMLElement {
+  return h(
+    'div',
+    { class: 'row wrap' },
+    saveText ? button('Export save', () => exportSave(saveText, seed), { kind: 'quiet', title: 'Download the saved game as a file' }) : null,
+    button('Import save', () => importSave((problem) => showTitle(problem ?? 'Save imported.')), {
+      kind: 'quiet',
+      title: saveText ? 'Load a save file, replacing the game saved here' : 'Load a save file',
+    }),
+    saveText ? deleteButton() : null,
+  );
+}
+
+/** Two clicks to delete: the first asks, the second deletes. (Pages embedded on itch.io can't show a confirm box.) */
+function deleteButton(): HTMLElement {
+  let asked = false;
+  const btn = button('Delete save', () => {
+    if (!asked) {
+      asked = true;
+      btn.textContent = 'Delete for good? Click again';
+      btn.className = 'btn btn-risk';
+      return;
+    }
+    deleteSave();
+    showTitle('Save deleted.');
+  }, { kind: 'quiet', title: 'Can’t be undone. Export the save first to keep a copy.' });
+  return btn;
+}
+
+function about(): HTMLElement {
+  return h(
+    'footer',
+    { class: 'about caption muted' },
+    h('p', null, `Cartographer ${__APP_VERSION__}. Made by loumiy, who also drew up its style guide. © 2026 loumiy, all rights reserved.`),
+    h('p', null, 'Set in IM Fell English, digitised by Igino Marini, and Alegreya Sans by Huerta Tipográfica, both under the SIL Open Font License.'),
   );
 }
 
@@ -275,6 +376,19 @@ function startGame(state: GameState) {
   };
   window.addEventListener('keydown', onKey);
 
+  // Leaving the tab heaves the ship to, so the voyage waits for the captain, and saves the game
+  // (a browser may close a hidden page without warning).
+  const onHidden = () => {
+    if (document.visibilityState !== 'hidden') return;
+    if (state.mode === 'sea' && !state.paused && !state.pending.length) {
+      state.paused = true;
+      state.alert = 'Hove to while you were away.';
+      dirty = true;
+    }
+    writeSave(state);
+  };
+  document.addEventListener('visibilitychange', onHidden);
+
   const themeWatch = matchMedia('(prefers-color-scheme: dark)');
   const onThemeChange = () => {
     chart.refreshPalette();
@@ -334,6 +448,7 @@ function startGame(state: GameState) {
   stopLoop = () => {
     running = false;
     window.removeEventListener('keydown', onKey);
+    document.removeEventListener('visibilitychange', onHidden);
     themeWatch.removeEventListener('change', onThemeChange);
     writeSave(state);
   };

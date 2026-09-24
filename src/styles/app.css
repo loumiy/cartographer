@@ -155,6 +155,12 @@ dd {
   display: grid;
   gap: var(--space-6);
 }
+.about {
+  border-top: 1px solid var(--ink-faint);
+  padding-top: var(--space-4);
+  display: grid;
+  gap: var(--space-1);
+}
 .rules {
   padding-left: var(--space-6);
   display: grid;
@@ -283,6 +289,13 @@ dd {
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+.hint {
+  border-left: 3px solid var(--verdigris);
+  background: var(--vellum-deep);
+  padding: var(--space-2) var(--space-4) var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
 .alert {
   border-left: 3px solid var(--ink);
   background: var(--vellum-deep);
@@ -378,6 +391,10 @@ dd {
 .tab.on {
   color: var(--ink);
   border-bottom-color: var(--ink);
+}
+.tab-body {
+  display: grid;
+  gap: var(--space-4);
 }
 .tab-body > div {
   display: grid;

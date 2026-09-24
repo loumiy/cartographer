@@ -64,6 +64,7 @@ export function newGame(seed: string): GameState {
     fleet: [],
     routes: [],
     milestones: [],
+    hintsSeen: [],
     report: null,
     news: [],
     log: [],
@@ -119,13 +120,37 @@ export function deserialize(text: string): GameState | null {
       if (value && typeof value === 'object' && Array.isArray(value.$i16)) return Int16Array.from(value.$i16);
       return value;
     }) as GameState;
-    if ((state.version as number) === 1) return migrateV1(state as unknown as V1State);
-    if ((state.version as number) === 2) return migrateV2(state);
-    if (state.version !== SAVE_VERSION) return null;
-    return state;
+    const version = state.version as number;
+    const game = version === 1 ? migrateV1(state as unknown as V1State) : version === 2 ? migrateV2(state) : version === SAVE_VERSION ? state : null;
+    // Saves from before hints existed belong to captains who already know the ropes.
+    if (game && !game.hintsSeen && game.voyagesSailed > 0) game.hintsOff = true;
+    return game && looksWhole(game) ? game : null;
   } catch {
     return null;
   }
+}
+
+/** A light check that a loaded save has the parts the game needs, so a damaged file is refused rather than crashing. */
+function looksWhole(state: GameState): boolean {
+  const w = state.world;
+  const cells = w?.width * w?.height;
+  return (
+    !!w &&
+    w.cells instanceof Uint8Array &&
+    w.cells.length === cells &&
+    w.landmassOf instanceof Int16Array &&
+    state.known instanceof Uint8Array &&
+    state.known.length === cells &&
+    Array.isArray(w.ports) &&
+    !!w.ports[state.portId] &&
+    !!state.ship &&
+    Number.isFinite(state.ship.x) &&
+    Number.isFinite(state.day) &&
+    Number.isFinite(state.cash) &&
+    ['port', 'sea', 'over'].includes(state.mode) &&
+    (state.mode !== 'sea' || !!state.voyage) &&
+    Array.isArray(state.pending)
+  );
 }
 
 // ---------------------------------------------------------------------------
