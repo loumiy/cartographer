@@ -73,3 +73,13 @@ A voyage takes 3 to 8 minutes. Paying off the ship takes an hour or two, and the
 - **Inputs:** Mouse, Keyboard
 - **Average session:** About a half-hour
 - **Languages:** English
+
+## Embed options
+
+- **How should your project be run:** Embed in page.
+- **Viewport dimensions:** 1280 × 720, set manually. At this size the ledger sits beside the chart and the chart is 920 px wide. The ledger scrolls inside its own column, so the frame never needs to. At 960 × 600 it still works but the chart shrinks to 600 px. Below 860 px wide the ledger drops under the chart and the whole page has to scroll.
+- **Mobile friendly:** Off for now. Touch pan, pinch zoom and tap-to-waypoint work, and narrow screens stack the ledger under the chart, but removing a single waypoint needs right-click or Backspace (touch players only have "Clear course"), and it hasn't been tried on a phone. If you turn it on, pick portrait, which suits the stacked layout.
+- **Automatically start on page load:** Off. The build is small, so it would load fine, but a click to launch also focuses the frame, and the game's keys (Space, 1–3, H) only reach it once the frame has focus. Otherwise Space scrolls the itch page.
+- **Fullscreen button:** On. The chart is the screen, and more room is always better.
+- **Enable scrollbars:** Off. At 1280 × 720 the layout fits the frame exactly. Turn it on only if you choose a frame narrower than 860 px.
+- **SharedArrayBuffer support:** Off. The game doesn't use it.
