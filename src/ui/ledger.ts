@@ -65,6 +65,7 @@ import {
   takeCommand,
   warehouseCap,
 } from '../game/holdings';
+import { currentHint, dismissHint, stopHints } from '../game/hints';
 import type { Contract, GameState, RouteStop } from '../game/types';
 
 import { button, h } from './dom';
@@ -94,7 +95,29 @@ export const SPEEDS = [
 
 export function renderLedger(ctx: UiContext): HTMLElement {
   if (ctx.state.mode === 'over') return overLedger(ctx);
-  return ctx.state.mode === 'sea' ? seaLedger(ctx) : portLedger(ctx);
+  const el = ctx.state.mode === 'sea' ? seaLedger(ctx) : portLedger(ctx);
+  const note = hintNote(ctx);
+  // In port the hint scrolls with the tab, so it never crowds out the contracts.
+  if (note) (el.querySelector('.tab-body') ?? el).prepend(note);
+  return el;
+}
+
+/** A one-time hint for a new captain, at the head of the ledger until dismissed. */
+function hintNote(ctx: UiContext): HTMLElement | null {
+  const hint = currentHint(ctx.state);
+  if (!hint) return null;
+  return h(
+    'section',
+    { class: 'hint', role: 'note', 'aria-label': 'Hint' },
+    h('h3', { class: 'label' }, hint.title),
+    h('p', { class: 'body' }, hint.body),
+    h(
+      'div',
+      { class: 'row' },
+      button('Got it', () => ctx.act((s) => dismissHint(s, hint.id)), { kind: 'secondary' }),
+      button('No more hints', () => ctx.act(stopHints), { kind: 'quiet' }),
+    ),
+  );
 }
 
 function overLedger(ctx: UiContext): HTMLElement {

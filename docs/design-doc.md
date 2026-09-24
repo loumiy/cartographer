@@ -1,6 +1,6 @@
 # Cartographer — V1 Design Doc
 
-Sep 22, 2026 · @Someone
+Sep 22, 2026 · loumiy
 
 ## Overview
 

@@ -386,4 +386,8 @@ export interface GameState {
    * voyage ends in disaster, the player can go back to it.
    */
   checkpoint?: string;
+  /** One-time hints already shown, by id. */
+  hintsSeen?: string[];
+  /** The player turned hints off. */
+  hintsOff?: boolean;
 }

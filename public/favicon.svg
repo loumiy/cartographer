@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- An 8-point compass rose, the home-port symbol, in ink on vellum (colours from src/styles/tokens.css). -->
+  <rect width="64" height="64" fill="#EDE3CC"/>
+  <g fill="#2A2620">
+    <path d="M32 4 L36 28 L32 32 L28 28 Z"/>
+    <path d="M60 32 L36 36 L32 32 L36 28 Z"/>
+    <path d="M32 60 L28 36 L32 32 L36 36 Z"/>
+    <path d="M4 32 L28 28 L32 32 L28 36 Z"/>
+  </g>
+  <g fill="#5E5445">
+    <path d="M51.8 12.2 L35 32 L32 32 L32 29 Z"/>
+    <path d="M51.8 51.8 L32 35 L32 32 L35 32 Z"/>
+    <path d="M12.2 51.8 L29 32 L32 32 L32 35 Z"/>
+    <path d="M12.2 12.2 L32 29 L32 32 L29 32 Z"/>
+  </g>
+  <circle cx="32" cy="32" r="3" fill="#EDE3CC" stroke="#2A2620" stroke-width="1.5"/>
+</svg>
