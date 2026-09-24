@@ -1,6 +1,6 @@
 # Cartographer
 
-Age-of-Exploration voyage game (V1). Design: `docs/design-doc.md`.
+Age-of-Exploration voyage game. Design: `docs/design-doc.md` (V1) and `docs/chapter-2-design.md` (chapter 2).
 
 - Stack: Vite + TypeScript, no UI framework. Canvas chart in `src/ui/chart.ts`; DOM panels in `src/ui/`.
 - Game logic lives in `src/game/` and must stay free of DOM code so it can be unit tested (`npm test`).

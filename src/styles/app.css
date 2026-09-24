@@ -201,6 +201,26 @@ dd {
 .chart-canvas {
   display: block;
   cursor: crosshair;
+  touch-action: none;
+}
+.chart-canvas.dragging {
+  cursor: grabbing;
+}
+.chart-controls {
+  position: absolute;
+  left: var(--space-4);
+  bottom: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.chart-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  justify-content: center;
+  background: var(--vellum);
+  font-size: 18px;
 }
 .ledger {
   border-left: 1px solid var(--ink-faint);
@@ -534,4 +554,10 @@ dd {
     transition: none !important;
     animation: none !important;
   }
+}
+.milestones {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
 }

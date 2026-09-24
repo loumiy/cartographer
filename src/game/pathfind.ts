@@ -1,9 +1,13 @@
-import { Cell, type World } from './types';
+import { Cell, type Rect, type World } from './types';
 
 export interface PathOptions {
   /** Cells on the player's chart; unknown cells are only passable when `allowUnknown` is set. */
   known: Uint8Array;
   allowUnknown?: boolean;
+  /** Cells outside this rectangle are impassable. */
+  bounds?: Rect;
+  /** Treat known reefs and ice as impassable instead of costly. */
+  avoidHazards?: boolean;
 }
 
 const NEIGHBOURS = [
@@ -43,8 +47,15 @@ export function findPath(
   const start = sy * width + sx;
   const goal = gy * width + gx;
 
+  const b = opts.bounds;
   const passable = (i: number) => {
+    if (b) {
+      const x = i % width;
+      const y = (i - x) / width;
+      if (x < b.x0 || y < b.y0 || x >= b.x1 || y >= b.y1) return false;
+    }
     if (!opts.known[i]) return !!opts.allowUnknown;
+    if (opts.avoidHazards && (world.cells[i] === Cell.Reef || world.cells[i] === Cell.Ice)) return false;
     return world.cells[i] !== Cell.Land;
   };
   if (!passable(goal) && goal !== start) return null;
@@ -72,7 +83,8 @@ export function findPath(
       if (closed[j] || !passable(j)) continue;
       // No cutting diagonally between two land cells.
       if (dx !== 0 && dy !== 0 && (!passable(y * width + nx) || !passable(ny * width + x))) continue;
-      const step = cost + (opts.known[j] && world.cells[j] === Cell.Reef ? REEF_COST : 0);
+      const hazard = world.cells[j] === Cell.Reef || world.cells[j] === Cell.Ice;
+      const step = cost + (opts.known[j] && hazard ? REEF_COST : 0);
       const ng = g[i] + step;
       if (ng < g[j]) {
         g[j] = ng;

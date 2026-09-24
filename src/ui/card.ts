@@ -6,11 +6,11 @@ import { button, h } from './dom';
 import { cargoBlock, chartCaseList, type UiContext } from './ledger';
 
 /** The event card: the one sheet laid on the chart while the voyage waits for a decision. */
-export function renderCard(ctx: UiContext, onNewGame: () => void): HTMLElement | null {
+export function renderCard(ctx: UiContext, onNewGame: () => void, onRetry: () => void): HTMLElement | null {
   const it = ctx.state.pending[0];
   if (!it) return null;
   if (it.kind === 'arrival') return arrivalCard(ctx);
-  if (it.kind === 'gameover') return gameOverCard(ctx, it, onNewGame);
+  if (it.kind === 'gameover') return gameOverCard(ctx, it, onNewGame, onRetry);
   return eventCard(ctx, it);
 }
 
@@ -81,7 +81,7 @@ function arrivalCard(ctx: UiContext): HTMLElement {
   const r = state.report;
   const parts: string[] = [];
   if (r) {
-    parts.push(`Home after ${r.days} days at sea. We charted ${r.newCells} square leagues of new water and coast.`);
+    parts.push(`${r.port ? `In port at ${state.world.ports[r.port].name}` : 'Home'} after ${r.days} days at sea. We charted ${r.newCells} square leagues of new water and coast.`);
     if (r.landmasses.length) parts.push(`New land: ${r.landmasses.map((id) => landmassLabel(state, id)).join(', ')}.`);
     if (r.sites.length) parts.push(`Surveyed ${r.sites.length} site${r.sites.length > 1 ? 's' : ''} worth hauling from.`);
   }
@@ -90,15 +90,17 @@ function arrivalCard(ctx: UiContext): HTMLElement {
   return h(
     'div',
     { class: 'card card-wide', role: 'dialog', 'aria-labelledby': 'card-title' },
-    h('h2', { class: 'heading', id: 'card-title' }, `Home to ${state.world.portName}`),
+    h('h2', { class: 'heading', id: 'card-title' }, `${r?.port ? 'Arrived at' : 'Home to'} ${state.world.ports[r?.port ?? state.portId].name}`),
     h('p', { class: 'log' }, dayStamp(state), parts.join(' ') || 'We are home.'),
     r?.contract
       ? h(
           'p',
-          { class: `label ${r.contractResult === 'done' ? 'safe' : 'risk'}` },
+          { class: `label ${r.contractResult === 'done' ? 'safe' : r.contractResult === 'carried' ? '' : 'risk'}` },
           r.contractResult === 'done'
             ? `Contract fulfilled: the ${r.contract.patron} pays a bonus of ${money(r.bonus)}. The charts are theirs.`
-            : r.contractResult === 'late'
+            : r.contractResult === 'carried'
+              ? `The contract ends at ${state.world.ports[r.contract.to].name}, not here. It stays open for the next voyage; the charts are still the ${r.contract.patron}’s.`
+              : r.contractResult === 'late'
               ? `Contract completed too late: no bonus, and our name suffers. The charts are the ${r.contract.patron}’s.`
               : `Contract failed: no bonus, and our name suffers. The charts are the ${r.contract.patron}’s.`,
         )
@@ -120,7 +122,7 @@ function arrivalCard(ctx: UiContext): HTMLElement {
   );
 }
 
-function gameOverCard(ctx: UiContext, it: Interrupt, onNewGame: () => void): HTMLElement {
+function gameOverCard(ctx: UiContext, it: Interrupt, onNewGame: () => void, onRetry: () => void): HTMLElement {
   const { state } = ctx;
   const s = state.stats;
   return h(
@@ -144,7 +146,19 @@ function gameOverCard(ctx: UiContext, it: Interrupt, onNewGame: () => void): HTM
       h('dt', { class: 'caption muted' }, 'Days'),
       h('dd', { class: 'label' }, String(state.day)),
     ),
-    h('div', { class: 'row' }, button('Begin a new game', onNewGame, { kind: 'primary' })),
+    state.checkpoint
+      ? h(
+          'ol',
+          { class: 'choices' },
+          h(
+            'li',
+            { class: 'choice' },
+            button('Return to port before the voyage', onRetry, { kind: 'primary' }),
+            h('span', { class: 'caption muted' }, 'Everything from this voyage is lost, the chart it drew included'),
+          ),
+          h('li', { class: 'choice' }, button('Begin a new game', onNewGame), h('span', { class: 'caption muted' }, 'A new sea, from nothing')),
+        )
+      : h('div', { class: 'row' }, button('Begin a new game', onNewGame, { kind: 'primary' })),
     h('p', { class: 'caption muted' }, `Chart seed: ${state.world.seed}. Replay it to sail the same sea.`),
   );
 }

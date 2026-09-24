@@ -2,28 +2,50 @@ import { CONFIG } from './config';
 import {
   adjacentLandmass,
   alert,
+  bounds,
   cargoCap,
   cargoUsed,
   compass,
   dailyRations,
   daysOfStores,
+  forageExpected,
+  forageRecovery,
   distToDock,
+  hurtHull,
+  inSailable,
   isKnown,
+  knownPorts,
   knownLandNear,
   landmassLabel,
   log,
   money,
+  postAt,
   provisionCap,
   raise,
+  routeTo,
   sightRadius,
   speed,
   updateHomeEstimate,
   withRng,
 } from './core';
-import { arrive, processSeason } from './economy';
+import { arrive, passageCharted, processSeason } from './economy';
+import {
+  buyStoresAtPost,
+  cannotFound,
+  cannotResupply,
+  checkMilestones,
+  collectFromPost,
+  foundPost,
+  postRepairCost,
+  postLabel,
+  postStorePrice,
+  repairAtPost,
+  resupplyPost,
+  seasonsSinceSupplied,
+} from './holdings';
 import { findPath, simplifyPath } from './pathfind';
-import { Cell, type Choice, type GameState, type Interrupt } from './types';
-import { cellAt, idx, inBounds, remoteness } from './world';
+import { Cell, type Choice, type Contract, type GameState, type Interrupt } from './types';
+import { cellAt, idx, inBounds, regionOf, remoteness, rowIsCold } from './world';
 
 type Pt = { x: number; y: number };
 
@@ -87,7 +109,9 @@ function endDay(state: GameState, quiet: boolean) {
 
   updateHomeEstimate(state);
   checkProvisionAlerts(state);
-  if (!quiet && !state.pending.length) rollEvents(state);
+  const c = v.contract;
+  if (c?.kind === 'passage' && !c.done && passageCharted(state)) objectiveReached(state, 'a clear passage between the ports is charted');
+  if (!quiet && !state.pending.length && !state.paused) rollEvents(state);
 }
 
 function checkProvisionAlerts(state: GameState) {
@@ -100,14 +124,14 @@ function checkProvisionAlerts(state: GameState) {
     }
   }
   const left = daysOfStores(state);
-  if (!v.pointOfNoReturnWarned && v.leftHome && left <= v.homeDays + 3) {
+  if (!v.pointOfNoReturnWarned && v.leftHome && left <= v.havenDays + 3) {
     v.pointOfNoReturnWarned = true;
     alert(
       state,
-      `Point of no return: ${Math.floor(left)} days of stores, and home lies ${v.homeDays} days away. Turn back or find a place to forage.`,
+      `Point of no return: ${Math.floor(left)} days of stores, and the nearest port or post lies ${v.havenDays} days away. Turn back or find a place to forage.`,
       'bad',
     );
-  } else if (v.pointOfNoReturnWarned && left > v.homeDays + 8) {
+  } else if (v.pointOfNoReturnWarned && left > v.havenDays + 8) {
     v.pointOfNoReturnWarned = false;
   }
 }
@@ -123,12 +147,14 @@ function checkLost(state: GameState): boolean {
   return true;
 }
 
-export function gameOver(state: GameState, outcome: 'won' | 'lost', title: string, body: string) {
+export function gameOver(state: GameState, outcome: 'lost', title: string, body: string) {
   if (state.mode === 'over') return;
   state.mode = 'over';
   state.outcome = outcome;
-  state.pending = [{ kind: 'gameover', title, body, choices: [{ id: 'new', label: 'Begin a new game' }] }];
-  log(state, `${title}. ${body}`, outcome === 'won' ? 'good' : 'bad');
+  const choices = [{ id: 'new', label: 'Begin a new game' }];
+  if (state.checkpoint) choices.unshift({ id: 'retry', label: 'Return to port before the voyage' });
+  state.pending = [{ kind: 'gameover', title, body, choices }];
+  log(state, `${title}. ${body}`, 'bad');
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +180,11 @@ function moveShip(state: GameState, dist: number) {
     const fromCell = [Math.floor(ship.x), Math.floor(ship.y)];
     const cx = Math.floor(nx);
     const cy = Math.floor(ny);
+    if (!inSailable(state, cx, cy)) {
+      v.waypoints = [];
+      alert(state, 'Contrary winds and a hard current turn us back. We cannot press farther this way.');
+      return;
+    }
     const cell = cellAt(world, cx, cy);
     if (cell === Cell.Land) {
       v.waypoints = [];
@@ -166,19 +197,21 @@ function moveShip(state: GameState, dist: number) {
     dist -= mv;
     if (mv >= d - 1e-9) v.waypoints.shift();
 
-    if (cell === Cell.Reef && (cx !== fromCell[0] || cy !== fromCell[1])) {
-      const dmg = withRng(state, (rng) => rng.int(8, 18));
-      ship.hull = Math.max(0, ship.hull - dmg);
-      alert(state, `We scraped over a reef! The hull takes ${dmg} damage.`, 'bad');
+    if ((cell === Cell.Reef || cell === Cell.Ice) && (cx !== fromCell[0] || cy !== fromCell[1])) {
+      const dmg = hurtHull(state, withRng(state, (rng) => rng.int(8, 18)));
+      alert(state, cell === Cell.Ice ? `We struck drifting ice! The hull takes ${dmg} damage.` : `We scraped over a reef! The hull takes ${dmg} damage.`, 'bad');
       if (checkLost(state)) return;
     }
 
     const last = v.track[v.track.length - 1];
     if (!last || Math.hypot(last.x - ship.x, last.y - ship.y) >= 0.75) v.track.push({ x: ship.x, y: ship.y });
-    if (!v.leftHome && distToDock(state) > 3) v.leftHome = true;
+    const start = state.world.ports[v.startPort];
+    if (!v.leftHome && distToDock(state, start) > 3) v.leftHome = true;
     reveal(state);
-    if (v.leftHome && distToDock(state) < 1) {
-      arrive(state);
+    // Any known port ends the voyage; the one we left only once we have been away from it.
+    const port = knownPorts(state).find((p) => distToDock(state, p) < 1 && (p.id !== v.startPort || v.leftHome));
+    if (port) {
+      arrive(state, port.id);
       return;
     }
     if (v.landfallTarget >= 0 && adjacentLandmass(state, v.landfallTarget) === v.landfallTarget) {
@@ -205,13 +238,17 @@ export function reveal(state: GameState) {
 
   for (let y = Math.floor(cy - r); y <= Math.floor(cy + r); y++) {
     for (let x = Math.floor(cx - r); x <= Math.floor(cx + r); x++) {
-      if (!inBounds(world, x, y)) continue;
+      if (!inSailable(state, x, y)) continue;
       if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) > r + 0.25) continue;
       const i = idx(world, x, y);
       if (known[i]) continue;
       known[i] = 1;
       state.stats.cellsCharted++;
-      if (v) v.newCells++;
+      if (v) {
+        v.newCells++;
+        v.newSum.x += x;
+        v.newSum.y += y;
+      }
       const cell = world.cells[i];
       if (cell === Cell.Land) {
         const lm = world.landmasses[world.landmassOf[i]];
@@ -219,7 +256,7 @@ export function reveal(state: GameState) {
           lm.discovered = true;
           newLand.push(lm.id);
         }
-      } else if (cell === Cell.Reef && heading) {
+      } else if ((cell === Cell.Reef || cell === Cell.Ice) && heading) {
         // Warn only for reefs roughly along the course.
         const hx = heading.x - cx;
         const hy = heading.y - cy;
@@ -234,14 +271,14 @@ export function reveal(state: GameState) {
 
   if (!v) return;
 
+  checkFarPort(state);
+
   for (const lmId of newLand) {
     v.landmassesFound.push(lmId);
     const lm = world.landmasses[lmId];
     log(state, `Land ho! A new ${lm.kind} to the ${compass(lm.cx - cx, lm.cy - cy)}.`, 'good');
-    if (v.contract?.kind === 'find_land' && !v.objectiveDone && v.days <= (v.contract.withinDays ?? 0)) {
-      v.objectiveDone = true;
-      log(state, 'Contract objective reached: new land found. Return home to claim the bonus.', 'good');
-    }
+    const c = v.contract;
+    if (c?.kind === 'find_land' && !c.done && contractElapsed(state, c) <= (c.withinDays ?? 0)) objectiveReached(state, 'new land found');
   }
   if (newLand.length) {
     const lm = world.landmasses[newLand[0]];
@@ -280,14 +317,45 @@ export function reveal(state: GameState) {
   checkRegionObjective(state);
 }
 
+/** The first sight of the far port: mark it, and open the rest of the world. */
+function checkFarPort(state: GameState) {
+  const far = state.world.ports[1];
+  if (far.known || !state.known[idx(state.world, far.x, far.y)]) return;
+  far.known = true;
+  state.expanded = true;
+  log(state, `A town on the far shore: ${far.name}, held by ${far.power}. The coast runs on past the edge of our chart.`, 'good');
+  raise(state, {
+    kind: 'far_port',
+    title: `The far shore: ${far.name}`,
+    body: `Smoke on the shore, and masts behind a headland. There is a town here, ${far.name}, held by ${far.power}, and the coast runs on past the edge of our chart. Its quay will buy our charts and cargo, and the seas beyond are open to us now.`,
+    choices: [
+      { id: 'port', label: `Make for ${far.name}`, hint: 'Sail in and end the voyage there', tone: 'safe' },
+      { id: 'sail', label: 'Hold course', hint: 'Mark it on the chart and sail on' },
+    ],
+    data: { port: far.id },
+  });
+  checkMilestones(state);
+}
+
 function checkRegionObjective(state: GameState) {
   const v = state.voyage!;
   const c = v.contract;
-  if (!c || c.kind !== 'chart_region' || v.objectiveDone || !c.target) return;
-  if (regionShare(state, c.target) >= c.target.share) {
-    v.objectiveDone = true;
-    alert(state, 'Contract objective reached: the region is charted. Return home to claim the bonus.', 'good');
-  }
+  if (!c || c.kind !== 'chart_region' || c.done || !c.target) return;
+  if (regionShare(state, c.target) >= c.target.share) objectiveReached(state, 'the region is charted');
+}
+
+/** Days since the contract's first voyage set sail. */
+export function contractElapsed(state: GameState, c: Contract): number {
+  return state.day - (c.startDay ?? state.day);
+}
+
+/** Mark the voyage's contract objective done, and stop to say so. */
+export function objectiveReached(state: GameState, what: string) {
+  const c = state.voyage?.contract;
+  if (!c || c.done) return;
+  c.done = true;
+  const to = state.world.ports[c.to];
+  alert(state, `Contract objective reached: ${what}. Make for ${to.name} to claim the bonus.`, 'good');
 }
 
 export function regionShare(state: GameState, t: { x: number; y: number; r: number }): number {
@@ -310,7 +378,7 @@ export function regionShare(state: GameState, t: { x: number; y: number; r: numb
 function rollEvents(state: GameState) {
   const v = state.voyage!;
   const ship = state.ship;
-  const rem = remoteness(state.world, ship.x);
+  const rem = remoteness(state.world, ship.x, ship.y);
   const coastal = knownLandNear(state, ship.x, ship.y, CONFIG.coastRange);
 
   if (v.stormTomorrow) {
@@ -321,7 +389,9 @@ function rollEvents(state: GameState) {
 
   const roll = withRng(state, (rng) => rng.next());
   let p = 0;
-  const stormP = (0.02 + 0.035 * rem) * (coastal ? 0.6 : 1);
+  // The warm southern sea is stormier.
+  const warm = regionOf(state.world, ship.x, ship.y) === 'row' && !rowIsCold(state.world);
+  const stormP = (0.02 + 0.035 * rem) * (coastal ? 0.6 : 1) * (warm ? 1.5 : 1);
   const sickP = 0.004 + (ship.rations === 'short' ? 0.03 : 0) + 0.0006 * v.days + (ship.provisions <= 0 ? 0.08 : 0);
   const calmP = v.becalmedDays > 0 ? 0 : coastal ? 0.006 : 0.02;
   const spoilP = ship.provisions > 0 ? 0.01 : 0;
@@ -402,7 +472,7 @@ function maybeSignOfLand(state: GameState) {
   let bestD = Infinity;
   for (let y = Math.floor(ship.y - reach); y <= ship.y + reach; y++) {
     for (let x = Math.floor(ship.x - reach); x <= ship.x + reach; x++) {
-      if (!inBounds(world, x, y) || cellAt(world, x, y) !== Cell.Land) continue;
+      if (!inSailable(state, x, y) || cellAt(world, x, y) !== Cell.Land) continue;
       const lm = world.landmasses[world.landmassOf[idx(world, x, y)]];
       if (lm.discovered) continue;
       const d = Math.hypot(x + 0.5 - ship.x, y + 0.5 - ship.y);
@@ -431,7 +501,7 @@ function shelterWithin(state: GameState, r: number): Pt[] | null {
       if (!knownLandNear(state, x + 0.5, y + 0.5, 1)) continue;
       const d = Math.hypot(x + 0.5 - ship.x, y + 0.5 - ship.y);
       if (d > r || d >= bestLen) continue;
-      const path = findPath(world, { known: state.known }, ship, { x: x + 0.5, y: y + 0.5 });
+      const path = findPath(world, { known: state.known, bounds: bounds(state) }, ship, { x: x + 0.5, y: y + 0.5 });
       if (path && path.length <= r * 1.5) {
         best = path;
         bestLen = d;
@@ -485,13 +555,16 @@ export function resolve(state: GameState, choiceId: string) {
       if (choiceId === 'landfall') setCourseToLandmass(state, it.data!.landmass);
       break;
 
+    case 'far_port':
+      if (choiceId === 'port') courseHome(state, it.data!.port);
+      break;
+
     case 'storm': {
       const warned = it.data?.warned === 1;
       if (choiceId === 'run') {
         runBeforeStorm(state);
       } else if (choiceId === 'ride') {
-        const dmg = withRng(state, (rng) => Math.round(rng.int(12, 28) * (warned ? 0.6 : 1) * (0.8 + 0.4 * remoteness(state.world, ship.x))));
-        ship.hull = Math.max(0, ship.hull - dmg);
+        const dmg = hurtHull(state, withRng(state, (rng) => Math.round(rng.int(12, 28) * (warned ? 0.6 : 1) * (0.8 + 0.4 * remoteness(state.world, ship.x, ship.y)))));
         log(state, `We rode out the storm. The hull took ${dmg} damage.`, 'bad');
         passDays(state, 1);
       } else if (choiceId === 'shelter') {
@@ -501,8 +574,7 @@ export function resolve(state: GameState, choiceId: string) {
           const last = path[path.length - 1] ?? ship;
           ship.x = last.x;
           ship.y = last.y;
-          const dmg = withRng(state, (rng) => rng.int(0, 4));
-          ship.hull = Math.max(0, ship.hull - dmg);
+          const dmg = hurtHull(state, withRng(state, (rng) => rng.int(0, 4)));
           log(state, `We ran for the lee of the land and sheltered there.${dmg ? ` Minor damage: ${dmg}.` : ''}`, 'info');
           reveal(state);
           passDays(state, Math.max(1, Math.ceil(path.length / CONFIG.speedCoast)));
@@ -580,7 +652,7 @@ function runBeforeStorm(state: GameState) {
     ship.y = ny;
     reveal(state);
   }
-  ship.hull = Math.max(0, ship.hull - dmg);
+  dmg = hurtHull(state, dmg);
   v.waypoints = [];
   log(state, `We ran before the storm and were blown ${n} leagues ${compass(dx, dy)}.${dmg ? ` Hull damage: ${dmg}.` : ''}`, 'info');
   state.paused = true;
@@ -593,7 +665,7 @@ function salvage(state: GameState, w: number) {
   wreck.looted = true;
   passDays(state, 1);
   if (state.mode !== 'sea') return;
-  const rem = remoteness(state.world, wreck.x);
+  const rem = remoteness(state.world, wreck.x, wreck.y);
   const outcome = withRng(state, (rng) => rng.weighted(['treasure', 'supplies', 'nothing', 'accident'], [0.28, 0.35, 0.22, 0.15]));
   if (outcome === 'treasure') {
     const gold = withRng(state, (rng) => Math.round(rng.range(250, 550) * (0.8 + rem)));
@@ -630,12 +702,12 @@ export function addWaypoint(state: GameState, x: number, y: number) {
   if (!v || state.mode !== 'sea') return;
   const cx = Math.floor(x);
   const cy = Math.floor(y);
-  if (!inBounds(state.world, cx, cy)) return;
+  if (!inSailable(state, cx, cy)) return;
   if (isKnown(state, cx, cy) && cellAt(state.world, cx, cy) === Cell.Land) return;
   const from = v.waypoints.length ? v.waypoints[v.waypoints.length - 1] : state.ship;
   const target = { x: cx + 0.5, y: cy + 0.5 };
   if (segmentBlocked(state, from, target)) {
-    const path = findPath(state.world, { known: state.known, allowUnknown: true }, from, target);
+    const path = findPath(state.world, { known: state.known, allowUnknown: true, bounds: bounds(state) }, from, target);
     if (path) {
       v.waypoints.push(...simplifyPath(path));
     } else {
@@ -671,15 +743,19 @@ export function removeLastWaypoint(state: GameState) {
   state.voyage?.waypoints.pop();
 }
 
-export function courseHome(state: GameState) {
+/** Set course for a port over charted water: the nearest known one unless one is named. */
+export function courseHome(state: GameState, portId?: number) {
   const v = state.voyage;
   if (!v) return;
   updateHomeEstimate(state);
-  if (!v.homeRoute.length) return;
-  v.waypoints = simplifyPath(v.homeRoute);
+  const port = state.world.ports[portId ?? v.homePort];
+  if (!port?.known) return;
+  const r = routeTo(state, { x: port.dock.x + 0.5, y: port.dock.y + 0.5 });
+  if (!r || !r.path.length) return;
+  v.waypoints = simplifyPath(r.path);
   v.landfallTarget = -1;
   state.alert = null;
-  log(state, `We turn for home: about ${v.homeDays} ${v.homeDays === 1 ? 'day' : 'days'}.`, 'info');
+  log(state, `We make for ${port.name}: about ${r.days} ${r.days === 1 ? 'day' : 'days'}.`, 'info');
 }
 
 export function setRations(state: GameState, r: 'full' | 'short') {
@@ -737,7 +813,7 @@ function setCourseToLandmass(state: GameState, lmId: number) {
   }
   candidates.sort((a, b) => a.d - b.d);
   for (const c of candidates.slice(0, 8)) {
-    const path = findPath(world, { known: state.known }, ship, { x: c.x + 0.5, y: c.y + 0.5 });
+    const path = findPath(world, { known: state.known, bounds: bounds(state) }, ship, { x: c.x + 0.5, y: c.y + 0.5 });
     if (path && path.length < bestD) {
       best = path;
       bestD = path.length;
@@ -784,12 +860,20 @@ function buildLandfall(state: GameState, result?: string): Interrupt {
   const lf = v.landfall!;
   const lm = state.world.landmasses[lf.landmass];
   const space = cargoCap(state) - cargoUsed(state);
+  const ship = state.ship;
+  const recovery = forageRecovery(state, lm);
+  const expectDays = Math.round(forageExpected(state, lm) / Math.max(1, dailyRations(state)));
+  const pickedOver = recovery < 0.15;
   const choices: Choice[] = [
     {
       id: 'shore',
       label: 'Send a shore party',
-      hint: lf.shorePartyDone ? 'Already foraged here' : 'Refill stores; 1 day; small risk to the party',
-      disabled: lf.shorePartyDone,
+      hint: lf.shorePartyDone
+        ? 'Already foraged here'
+        : pickedOver
+          ? `Picked over: the land recovers in ${Math.ceil((1 - recovery) * CONFIG.season)} days`
+          : `About ${expectDays} days of stores${recovery < 1 ? ' (still recovering)' : ''}; 1 day; small risk to the party`,
+      disabled: lf.shorePartyDone || pickedOver,
     },
     {
       id: 'survey',
@@ -798,7 +882,55 @@ function buildLandfall(state: GameState, result?: string): Interrupt {
       disabled: lf.surveyed,
     },
   ];
+  const c = v.contract;
+  if (c?.kind === 'supply_post' && c.post && !c.done && Math.hypot(c.post.x + 0.5 - state.ship.x, c.post.y + 0.5 - state.ship.y) <= 4) {
+    choices.unshift({ id: 'deliver', label: `Land the supplies at ${c.post.name}`, hint: 'The contract’s objective', tone: 'safe' });
+  }
   for (const site of sitesInReach(state, true)) {
+    const post = postAt(state, site.id);
+    if (post) {
+      const since = seasonsSinceSupplied(state, post);
+      choices.push({
+        id: `collect:${post.id}`,
+        label: `Collect from the ${postLabel(state, post)}`,
+        hint: post.warehouse <= 0 ? 'The warehouse is empty' : space <= 0 ? 'The hold is full' : `${Math.min(space, post.warehouse)} of ${post.warehouse} units`,
+        disabled: post.warehouse <= 0 || space <= 0,
+        tone: 'money',
+      });
+      const resupplyWhy = cannotResupply(state);
+      choices.push({
+        id: `resupply:${post.id}`,
+        label: 'Resupply the post',
+        hint: resupplyWhy ?? `${CONFIG.post.supplyTimber} timber and ${CONFIG.post.supplyStores} crew-days of stores; last supplied ${since ? `${since} season${since > 1 ? 's' : ''} ago` : 'this season'}`,
+        disabled: !!resupplyWhy,
+        tone: since >= CONFIG.post.fullFor ? 'risk' : undefined,
+      });
+      const storesRoom = provisionCap(state) - ship.provisions;
+      choices.push({
+        id: `buystores:${post.id}`,
+        label: 'Buy stores at the post',
+        hint: storesRoom < ship.crew ? 'Stores are full' : `Fill up at ${Math.round(CONFIG.post.markup * 100 - 100)}% over port prices: ${money(storesRoom * postStorePrice())}`,
+        disabled: storesRoom < ship.crew || state.cash < ship.crew * postStorePrice(),
+        tone: 'money',
+      });
+      if (ship.hull < 100) {
+        choices.push({
+          id: `repair:${post.id}`,
+          label: 'Repair at the post',
+          hint: `1 day; ${money(postRepairCost(state))}`,
+          disabled: state.cash < CONFIG.repairCostPerPoint * CONFIG.post.markup,
+          tone: 'money',
+        });
+      }
+      continue;
+    }
+    const why = cannotFound(state, site);
+    choices.push({
+      id: `found:${site.id}`,
+      label: `Found a trading post at the ${CONFIG.resources[site.type].label.toLowerCase()}`,
+      hint: why ?? `${money(CONFIG.post.cost)} and ${CONFIG.post.timber} timber; 1 day. It gathers the site’s cargo each season.`,
+      disabled: !!why,
+    });
     choices.push({
       id: `load:${site.id}`,
       label: `Load ${CONFIG.resources[site.type].label.toLowerCase()}`,
@@ -828,11 +960,20 @@ function landfallAction(state: GameState, choiceId: string) {
     return;
   }
   let result = '';
-  if (choiceId === 'shore') {
+  if (choiceId === 'deliver') {
+    ship.cargo = ship.cargo.filter((l) => l.type !== 'goods');
+    result = 'The boats land the stores and tools. The post’s factor signs for them.';
+    log(state, result, 'good');
+    objectiveReached(state, 'the supplies are landed');
+    state.paused = false;
+    state.alert = null;
+  } else if (choiceId === 'shore') {
     lf.shorePartyDone = true;
     passDays(state, 1);
     if (state.mode !== 'sea') return;
-    const gain = withRng(state, (rng) => Math.round(ship.crew * rng.range(7, 13) * lm.forage));
+    // Bigger land feeds more; land foraged recently has less to give.
+    const gain = withRng(state, (rng) => Math.round((forageExpected(state, lm) * rng.range(7, 13)) / 10));
+    lm.lastForaged = state.day;
     const room = provisionCap(state) - ship.provisions;
     const got = Math.max(0, Math.min(room, gain));
     ship.provisions += got;
@@ -860,11 +1001,41 @@ function landfallAction(state: GameState, choiceId: string) {
         site.surveyed = true;
         site.knownBy = Math.max(1, site.knownBy);
         v.sitesFound.push(site.id);
+        v.contract?.sitesFound.push(site.id);
         names.push(`${CONFIG.resources[site.type].label.toLowerCase()} (${site.maxStock} units a season)`);
       }
       result = `The survey finds ${names.join(' and ')}.`;
     }
     log(state, result, found.length ? 'good' : 'info');
+  } else if (choiceId.startsWith('found:')) {
+    const site = state.world.sites[Number(choiceId.slice(6))];
+    const post = foundPost(state, site);
+    if (post) {
+      passDays(state, 1);
+      if (state.mode !== 'sea') return;
+      result = `We raise a storehouse and a palisade: the ${postLabel(state, post)}. It will gather ${site.maxStock} units a season for us to collect.`;
+    }
+  } else if (choiceId.startsWith('collect:') || choiceId.startsWith('resupply:') || choiceId.startsWith('buystores:') || choiceId.startsWith('repair:')) {
+    const [action, id] = choiceId.split(':');
+    const post = state.posts.find((p) => p.id === Number(id));
+    if (post) {
+      if (action === 'collect') {
+        const qty = collectFromPost(state, post);
+        result = `We load ${qty} units from the post’s warehouse.`;
+        checkResourceObjective(state);
+      } else if (action === 'resupply') {
+        resupplyPost(state, post);
+        result = 'Timber and stores are landed. The post will keep working at full strength.';
+      } else if (action === 'buystores') {
+        buyStoresAtPost(state);
+        result = 'The post sells us what it can spare.';
+      } else {
+        repairAtPost(state);
+        passDays(state, 1);
+        if (state.mode !== 'sea') return;
+        result = 'The post’s carpenters work a day on the hull.';
+      }
+    }
   } else if (choiceId.startsWith('load:')) {
     const site = state.world.sites[Number(choiceId.slice(5))];
     const qty = Math.min(cargoCap(state) - cargoUsed(state), site.stock);
@@ -884,20 +1055,15 @@ function landfallAction(state: GameState, choiceId: string) {
 function checkResourceObjective(state: GameState) {
   const v = state.voyage!;
   const c = v.contract;
-  if (!c || c.kind !== 'find_resource' || v.objectiveDone || !c.resource) return;
-  if (deliverableQty(state) >= c.resource.qty) {
-    v.objectiveDone = true;
-    log(state, 'Contract objective reached: the cargo is aboard. Return home to deliver it.', 'good');
-  }
+  if (!c || c.kind !== 'find_resource' || c.done || !c.resource) return;
+  if (deliverableQty(state, c) >= c.resource.qty) objectiveReached(state, 'the cargo is aboard');
 }
 
-/** Cargo that counts for a find_resource contract: the right type, from sites first surveyed this voyage. */
-export function deliverableQty(state: GameState): number {
-  const v = state.voyage;
-  const c = v?.contract;
-  if (!v || !c?.resource) return 0;
+/** Cargo that counts for a find_resource contract: the right type, from sites surveyed under the contract. */
+export function deliverableQty(state: GameState, c: Contract | null | undefined): number {
+  if (!c?.resource) return 0;
   return state.ship.cargo
-    .filter((l) => l.type === c.resource!.type && v.sitesFound.includes(l.siteId))
+    .filter((l) => l.type === c.resource!.type && c.sitesFound.includes(l.siteId))
     .reduce((a, l) => a + l.qty, 0);
 }
 

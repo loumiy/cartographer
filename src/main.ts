@@ -3,7 +3,7 @@ import './styles/app.css';
 import { CONFIG } from './game/config';
 import { money } from './game/core';
 import { addWaypoint, courseHome, removeLastWaypoint, resolve, stepSea, togglePause } from './game/sea';
-import { deserialize, newGame, serialize } from './game/state';
+import { deserialize, newGame, restoreCheckpoint, serialize } from './game/state';
 import type { GameState } from './game/types';
 import { renderCard } from './ui/card';
 import { Chart } from './ui/chart';
@@ -34,7 +34,8 @@ function loadSave(): GameState | null {
 
 function writeSave(state: GameState) {
   try {
-    if (state.mode === 'over') storage()?.removeItem(SAVE_KEY);
+    // A lost game with no checkpoint is over for good; with one, it can still be taken back.
+    if (state.mode === 'over' && !state.checkpoint) storage()?.removeItem(SAVE_KEY);
     else storage()?.setItem(SAVE_KEY, serialize(state));
   } catch {
     /* Private mode or full storage: the game still plays, it just won't resume. */
@@ -86,7 +87,7 @@ function showTitle() {
           { class: 'body rules' },
           h('li', null, 'Click the chart to plot a course. The voyage stops when something needs a decision.'),
           h('li', null, 'Provisions are the clock. Every day past halfway is a bet.'),
-          h('li', null, `The financier wants ${money(CONFIG.paymentPerSeason)} a season from a debt of ${money(CONFIG.debt)}. Pay it all to win; miss a payment and lose the ship.`),
+          h('li', null, `The financier wants ${money(CONFIG.paymentPerSeason)} a season from a debt of ${money(CONFIG.debt)}. Miss a payment and lose the ship; pay it all and she is yours, to sail on as long as you like.`),
           h('li', null, 'Contracts are safe money, but the patron owns the chart. Freelance voyages keep everything.'),
         ),
         saved
@@ -94,7 +95,7 @@ function showTitle() {
               'div',
               { class: 'row' },
               button('Continue voyage', () => startGame(saved), { kind: 'primary' }),
-              h('span', { class: 'caption muted' }, `${saved.world.portName}, voyage ${saved.voyagesSailed}, debt ${money(saved.debt)}`),
+              h('span', { class: 'caption muted' }, `${saved.world.ports[saved.portId].name}, voyage ${saved.voyagesSailed}, ${saved.debt > 0 ? `debt ${money(saved.debt)}` : 'ship owned outright'}`),
             )
           : null,
         h(
@@ -134,6 +135,7 @@ function startGame(state: GameState) {
 
   const chart = new Chart(chartHost);
   chartHost.insertBefore(chart.canvas, cardHost);
+  chartHost.insertBefore(chart.controls, cardHost);
 
   let dirty = true;
   let lastCard: unknown = null;
@@ -160,6 +162,7 @@ function startGame(state: GameState) {
       chart.preview = c?.target ?? null;
     },
     kept: new Set(),
+    routeDraft: null,
   };
 
   const renderTopbar = () => {
@@ -168,7 +171,7 @@ function startGame(state: GameState) {
     topbar.replaceChildren(
       h('span', { class: 'brand' }, 'Cartographer'),
       h('span', { class: 'topbar-stat' }, h('span', { class: 'caption muted' }, 'Purse '), h('span', { class: 'label money' }, money(state.cash))),
-      h('span', { class: 'topbar-stat' }, h('span', { class: 'caption muted' }, 'Debt '), h('span', { class: 'label' }, money(state.debt))),
+      h('span', { class: 'topbar-stat' }, h('span', { class: 'caption muted' }, 'Debt '), h('span', { class: 'label' }, state.debt > 0 ? money(state.debt) : 'Paid off')),
       h('span', { class: 'topbar-stat' }, h('span', { class: 'caption muted' }, 'Reputation '), h('span', { class: 'label' }, String(state.reputation))),
       h('span', { class: 'spacer' }),
       button(lamp ? 'Daylight' : 'Lamplight', () => {
@@ -196,10 +199,20 @@ function startGame(state: GameState) {
     if (it === lastCard && key === lastCardBody && it?.kind !== 'arrival') return;
     lastCard = it;
     lastCardBody = key;
-    const card = renderCard(ctx, () => {
-      stopLoop?.();
-      startGame(newGame(randomSeed()));
-    });
+    const card = renderCard(
+      ctx,
+      () => {
+        stopLoop?.();
+        startGame(newGame(randomSeed()));
+      },
+      () => {
+        const restored = restoreCheckpoint(state);
+        if (!restored) return;
+        stopLoop?.();
+        writeSave(restored);
+        startGame(restored);
+      },
+    );
     cardHost.replaceChildren(...(card ? [card] : []));
     if (card) {
       // Lay the card on the side of the chart away from the ship.
@@ -220,11 +233,9 @@ function startGame(state: GameState) {
     renderCardLayer();
   };
 
-  // Chart input: click adds a waypoint, right-click removes the last one.
-  chart.canvas.addEventListener('click', (e) => {
+  // Chart input: a tap adds a waypoint, right-click removes the last one. Drag pans, wheel zooms.
+  chart.onTap = (p) => {
     if (state.mode !== 'sea' || state.pending.length) return;
-    const r = chart.canvas.getBoundingClientRect();
-    const p = chart.toCell(e.clientX - r.left, e.clientY - r.top);
     const wasIdle = !state.voyage!.waypoints.length;
     ctx.act((s) => {
       addWaypoint(s, p.x, p.y);
@@ -234,18 +245,10 @@ function startGame(state: GameState) {
         s.alert = null;
       }
     });
-  });
-  chart.canvas.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
+  };
+  chart.onRightTap = () => {
     if (state.mode === 'sea') ctx.act(removeLastWaypoint);
-  });
-  chart.canvas.addEventListener('mousemove', (e) => {
-    const r = chart.canvas.getBoundingClientRect();
-    chart.hover = chart.toCell(e.clientX - r.left, e.clientY - r.top);
-  });
-  chart.canvas.addEventListener('mouseleave', () => {
-    chart.hover = null;
-  });
+  };
 
   const onKey = (e: KeyboardEvent) => {
     const target = e.target as HTMLElement;
@@ -265,7 +268,7 @@ function startGame(state: GameState) {
     } else if (e.key === '1' || e.key === '2' || e.key === '3') {
       ctx.setSpeed(Number(e.key) - 1);
     } else if (e.key === 'h' || e.key === 'H') {
-      ctx.act(courseHome);
+      ctx.act((s) => courseHome(s));
     } else if (e.key === 'Backspace') {
       ctx.act(removeLastWaypoint);
     }

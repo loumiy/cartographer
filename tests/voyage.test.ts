@@ -24,7 +24,7 @@ describe('voyage', () => {
       runUntilStop(s);
       answerAll(s, ['sail', 'ride', 'rest', 'wait', 'leave', 'ok']);
     }
-    expect(s.ship.x).toBeGreaterThan(s.world.dock.x + 5);
+    expect(s.ship.x).toBeGreaterThan(s.world.ports[0].dock.x + 5);
     expect(s.known.reduce((a, b) => a + b, 0)).toBeGreaterThan(known0);
     expect(s.ship.provisions).toBeLessThan(prov0);
     expect(s.day).toBeGreaterThan(0);
@@ -56,7 +56,7 @@ describe('voyage', () => {
     const s = sail('starve');
     s.ship.provisions = 0;
     for (let i = 0; i < 500 && s.mode === 'sea'; i++) {
-      if (!s.voyage!.waypoints.length) addWaypoint(s, 20 + (i % 3) * 5, 20 + ((i * 17) % 50));
+      if (!s.voyage!.waypoints.length) addWaypoint(s, 20 + (i % 3) * 5, s.world.firstSea.y0 + 20 + ((i * 17) % 50));
       runUntilStop(s);
       answerAll(s, ['wait', 'rest', 'ride', 'ok', 'sail', 'leave']);
     }
@@ -83,7 +83,7 @@ describe('voyage', () => {
           return;
         }
         answerAll(s, ['sail', 'ride', 'rest', 'wait', 'ok']);
-        if (!s.voyage?.waypoints.length && !s.pending.length) addWaypoint(s, 60 + i, (s.ship.y + 7 * i) % 80);
+        if (!s.voyage?.waypoints.length && !s.pending.length) addWaypoint(s, 60 + i, s.world.firstSea.y0 + ((s.ship.y - s.world.firstSea.y0 + 7 * i) % 80));
       }
     }
     throw new Error('never made landfall');
@@ -99,7 +99,7 @@ describe('full run by a simple bot', () => {
         if (s.ship.crew < CONFIG.crewMin) s.ship.crew = CONFIG.crewMin;
         setSail(s);
         if (s.mode !== 'sea') break;
-        const target = { x: 30 + voyage * 8, y: 10 + ((voyage * 23) % 60) };
+        const target = { x: 30 + voyage * 8, y: s.world.firstSea.y0 + 10 + ((voyage * 23) % 60) };
         addWaypoint(s, target.x, target.y);
         let turned = false;
         for (let i = 0; i < 400 && s.mode === 'sea'; i++) {

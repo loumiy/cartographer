@@ -1,8 +1,8 @@
 import { Rng } from '../rng';
 import { CONFIG } from './config';
 import { findPath } from './pathfind';
-import { cellAt, idx, inBounds, remoteness } from './world';
-import { Cell, type GameState, type Interrupt, type Site } from './types';
+import { cellAt, idx, inBounds, inRect, remoteness } from './world';
+import { Cell, type ChartItem, type GameState, type Interrupt, type Port, type Post, type Rect, type Site } from './types';
 
 /** Run `fn` with the game's saved RNG and store its advanced state back. */
 export function withRng<T>(state: GameState, fn: (rng: Rng) => T): T {
@@ -36,11 +36,71 @@ export function sightRadius(state: GameState): number {
 }
 
 export function provisionCap(state: GameState): number {
-  return CONFIG.provisionCapBase + CONFIG.provisionCapPerLevel * state.upgrades.stores;
+  return CONFIG.ships[state.ship.kind].stores + levelsSum(CONFIG.storesLevels, state.ship.refits.stores);
 }
 
 export function cargoCap(state: GameState): number {
-  return CONFIG.cargoCapBase + CONFIG.cargoCapPerLevel * state.upgrades.hold;
+  return CONFIG.ships[state.ship.kind].hold + levelsSum(CONFIG.holdLevels, state.ship.refits.hold);
+}
+
+/** Capacity added by the first `n` refit levels. */
+export function levelsSum(levels: readonly number[], n: number): number {
+  return levels.slice(0, n).reduce((a, b) => a + b, 0);
+}
+
+/** How far the stores reach: days at the current crew and rations. */
+export function rangeDays(state: GameState, provisions = state.ship.provisions): number {
+  return provisions / Math.max(1, dailyRations(state));
+}
+
+/**
+ * How much of a landmass's forage has come back since it was last foraged: none just after,
+ * all of it a season later.
+ */
+export function forageRecovery(state: GameState, lm: { lastForaged?: number }): number {
+  if (lm.lastForaged === undefined) return 1;
+  return Math.max(0, Math.min(1, (state.day - lm.lastForaged) / CONFIG.season));
+}
+
+/** Expected shore-party yield in crew-days at this landmass now (before the random spread). */
+export function forageExpected(state: GameState, lm: { forage: number; kind: string; lastForaged?: number }): number {
+  return state.ship.crew * 10 * lm.forage * (CONFIG.forageBySize[lm.kind] ?? 1) * forageRecovery(state, lm);
+}
+
+export function crewMax(state: GameState): number {
+  return CONFIG.ships[state.ship.kind].crewMax;
+}
+
+/** Take hull damage, softened by a stronger hull. Returns the damage actually taken. */
+export function hurtHull(state: GameState, dmg: number): number {
+  const taken = Math.round(dmg * CONFIG.ships[state.ship.kind].toughness);
+  state.ship.hull = Math.max(0, state.ship.hull - taken);
+  return taken;
+}
+
+/** The active (not abandoned) post at a site, if any. */
+export function postAt(state: GameState, siteId: number): Post | undefined {
+  return state.posts.find((p) => p.siteId === siteId && !p.abandoned);
+}
+
+/** A known sea cell beside a post's site, where a ship lies to reach it. */
+export function postAnchor(state: GameState, post: Post): { x: number; y: number } | null {
+  const site = state.world.sites[post.siteId];
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (let dy = -3; dy <= 3; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const x = site.x + dx;
+      const y = site.y + dy;
+      if (!isKnown(state, x, y) || cellAt(state.world, x, y) !== Cell.Sea) continue;
+      const d = Math.hypot(dx, dy);
+      if (d < bestD) {
+        bestD = d;
+        best = { x: x + 0.5, y: y + 0.5 };
+      }
+    }
+  }
+  return best;
 }
 
 export function cargoUsed(state: GameState): number {
@@ -54,6 +114,23 @@ export function dailyRations(state: GameState): number {
 export function daysOfStores(state: GameState): number {
   const use = dailyRations(state);
   return use > 0 ? state.ship.provisions / use : Infinity;
+}
+
+/** What can be sailed: the first sea until the far port is found, then the whole world. */
+export function bounds(state: GameState): Rect {
+  return state.expanded ? { x0: 0, y0: 0, x1: state.world.width, y1: state.world.height } : state.world.firstSea;
+}
+
+export function inSailable(state: GameState, x: number, y: number): boolean {
+  return inRect(bounds(state), x, y);
+}
+
+export function knownPorts(state: GameState): Port[] {
+  return state.world.ports.filter((p) => p.known);
+}
+
+export function currentPort(state: GameState): Port {
+  return state.world.ports[state.portId];
 }
 
 export function isKnown(state: GameState, x: number, y: number): boolean {
@@ -101,24 +178,15 @@ export function speed(state: GameState): number {
   return Math.max(1, s);
 }
 
-export function distToDock(state: GameState): number {
-  const d = state.world.dock;
-  return Math.hypot(state.ship.x - (d.x + 0.5), state.ship.y - (d.y + 0.5));
+export function distToDock(state: GameState, port: Port): number {
+  return Math.hypot(state.ship.x - (port.dock.x + 0.5), state.ship.y - (port.dock.y + 0.5));
 }
 
-/** Re-plan the route home over charted water and estimate its length in days. */
-export function updateHomeEstimate(state: GameState) {
-  const v = state.voyage;
-  if (!v) return;
-  const dock = state.world.dock;
-  const path = findPath(state.world, { known: state.known }, state.ship, { x: dock.x + 0.5, y: dock.y + 0.5 });
-  if (!path) {
-    v.homeRoute = [];
-    v.homeDays = Infinity;
-    return;
-  }
-  v.homeRoute = path;
-  // Sum the route at the speed each stretch will actually be sailed: slower along charted coasts.
+/** Charted route from the ship to a point, and its length in days at the speed each stretch will be sailed. */
+export function routeTo(state: GameState, to: { x: number; y: number }): { path: { x: number; y: number }[]; days: number } | null {
+  const path = findPath(state.world, { known: state.known, bounds: bounds(state) }, state.ship, to);
+  if (!path) return null;
+  // Slower along charted coasts.
   let days = 0;
   let px = state.ship.x;
   let py = state.ship.y;
@@ -129,13 +197,57 @@ export function updateHomeEstimate(state: GameState) {
     px = p.x;
     py = p.y;
   }
-  v.homeDays = Math.ceil(days);
+  return { path, days: Math.ceil(days) };
 }
 
-/** Unit price of a site's cargo: richer is dearer, and every ship that knows the route cuts it. */
-export function unitPrice(site: Site): number {
+/**
+ * Re-plan the routes to each known port over charted water. The nearest port is "home" for the
+ * Turn-for-home order; the nearest haven, port or trading post, sets the point of no return.
+ */
+export function updateHomeEstimate(state: GameState) {
+  const v = state.voyage;
+  if (!v) return;
+  v.portDays = state.world.ports.map(() => Infinity);
+  v.homeRoute = [];
+  v.homeDays = Infinity;
+  for (const port of knownPorts(state)) {
+    const r = routeTo(state, { x: port.dock.x + 0.5, y: port.dock.y + 0.5 });
+    if (!r) continue;
+    v.portDays[port.id] = r.days;
+    if (r.days < v.homeDays) {
+      v.homeDays = r.days;
+      v.homeRoute = r.path;
+      v.homePort = port.id;
+    }
+  }
+  v.havenDays = v.homeDays;
+  for (const post of state.posts) {
+    if (post.abandoned) continue;
+    const site = state.world.sites[post.siteId];
+    // Only posts that could be nearer than the nearest port are worth routing to.
+    if (Math.hypot(site.x - state.ship.x, site.y - state.ship.y) / CONFIG.speedOpen >= v.havenDays) continue;
+    const at = postAnchor(state, post);
+    const r = at && routeTo(state, at);
+    if (r && r.days < v.havenDays) v.havenDays = r.days;
+  }
+}
+
+/**
+ * Unit price of a site's cargo: richer is dearer, and every ship that knows the route cuts it.
+ * With a port given, that port's market multiplier applies.
+ */
+export function unitPrice(site: Site, port?: Port): number {
   const base = CONFIG.resources[site.type].price * (0.8 + 0.4 * site.richness);
-  return base * knownFactor(site.knownBy);
+  return base * knownFactor(site.knownBy) * (port ? port.prices[site.type] : 1);
+}
+
+/** What the Admiralty at this port pays for a chart: more for waters near the other port, once there is one. */
+export function chartPrice(state: GameState, item: ChartItem, port: Port = currentPort(state)): number {
+  const ports = knownPorts(state);
+  if (ports.length < 2) return item.value;
+  const dist = (p: Port) => Math.hypot(item.x - p.dock.x, item.y - p.dock.y);
+  const nearest = ports.reduce((a, b) => (dist(b) < dist(a) ? b : a));
+  return Math.round(item.value * (nearest.id === port.id ? CONFIG.chartNearFactor : CONFIG.chartFarBonus));
 }
 
 export function knownFactor(knownBy: number): number {
@@ -149,7 +261,9 @@ export function siteSaleValue(site: Site): number {
 
 /** Per-season chance that someone else finds a kept secret: higher for rich sites and sites near home. */
 export function secretRisk(state: GameState, site: Site): number {
-  return 0.05 + 0.12 * site.richness + 0.08 * (1 - remoteness(state.world, site.x));
+  // A post is seen by every passing ship: it doubles the risk.
+  const post = postAt(state, site.id) ? 2 : 1;
+  return post * (0.05 + 0.12 * site.richness + 0.08 * (1 - remoteness(state.world, site.x, site.y)));
 }
 
 export function isSecret(site: Site): boolean {
