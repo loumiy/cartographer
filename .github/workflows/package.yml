@@ -1,0 +1,26 @@
+name: Package for itch.io
+
+# Builds the game on every push to main, or on demand from the Actions tab.
+# Download the "cartographer-itch" artifact from the run: that zip is ready to upload to itch.io as is.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cartographer-itch
+          path: dist/
+          if-no-files-found: error

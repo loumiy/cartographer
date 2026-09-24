@@ -43,7 +43,7 @@ Keys: <kbd>Space</kbd> sail/heave to, <kbd>1</kbd>–<kbd>3</kbd> time speed, <k
 
 ## Publishing on itch.io
 
-1. `npm run package` builds the game and zips `dist/` into `cartographer-itch.zip`. Every path in the build is relative, so it runs from any folder.
+1. Get the zip. Either let GitHub build it: every push to `main` (or **Run workflow** under Actions → Package for itch.io) runs the tests and builds the game; open the run and download **cartographer-itch** from its Artifacts. That download is the zip to upload, as is. Or run `npm run package` locally, which zips `dist/` into `cartographer-itch.zip`. Every path in the build is relative, so it runs from any folder.
 2. On itch.io, create a new project with **Kind of project: HTML**, upload the zip and tick **This file will be played in the browser**.
 3. Set the embed to **1280 × 800**, tick **Fullscreen button**, and leave **Mobile friendly** off: the game is built for a mouse and a desktop screen.
 4. Games save in the player's browser. The title screen can export a save to a file, import one, or delete it. A damaged save is refused with a message, not a blank screen.
