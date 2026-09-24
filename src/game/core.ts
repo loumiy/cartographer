@@ -32,15 +32,22 @@ export function alert(state: GameState, text: string, tone: 'good' | 'bad' | 'in
 }
 
 export function sightRadius(state: GameState): number {
-  return CONFIG.baseSight + state.upgrades.spyglass;
+  return CONFIG.baseSight + state.upgrades.spyglass + CONFIG.ships[state.ship.kind].sight;
 }
 
 export function provisionCap(state: GameState): number {
-  return CONFIG.ships[state.ship.kind].stores + levelsSum(CONFIG.storesLevels, state.ship.refits.stores);
+  const hull = CONFIG.ships[state.ship.kind];
+  return hull.stores + Math.round(levelsSum(CONFIG.storesLevels, state.ship.refits.stores) * hull.refitScale);
 }
 
 export function cargoCap(state: GameState): number {
-  return CONFIG.ships[state.ship.kind].hold + levelsSum(CONFIG.holdLevels, state.ship.refits.hold);
+  const hull = CONFIG.ships[state.ship.kind];
+  return hull.hold + Math.round(levelsSum(CONFIG.holdLevels, state.ship.refits.hold) * hull.refitScale);
+}
+
+/** Leagues a day in open water for the ship we sail. */
+export function openSpeed(state: GameState): number {
+  return CONFIG.speedOpen * CONFIG.ships[state.ship.kind].openSpeed;
 }
 
 /** Capacity added by the first `n` refit levels. */
@@ -172,7 +179,7 @@ export function adjacentLandmass(state: GameState, prefer = -1): number {
 
 export function speed(state: GameState): number {
   const v = state.voyage;
-  let s = knownLandNear(state, state.ship.x, state.ship.y, CONFIG.coastRange) ? CONFIG.speedCoast : CONFIG.speedOpen;
+  let s = knownLandNear(state, state.ship.x, state.ship.y, CONFIG.coastRange) ? CONFIG.speedCoast : openSpeed(state);
   if (v && v.slowDays > 0) s -= 1;
   if (state.ship.crew < 10) s *= 0.75;
   return Math.max(1, s);
@@ -193,7 +200,7 @@ export function routeTo(state: GameState, to: { x: number; y: number }): { path:
   const slow = state.ship.crew < 10 ? 0.75 : 1;
   for (const p of path) {
     const coastal = knownLandNear(state, p.x, p.y, CONFIG.coastRange);
-    days += Math.hypot(p.x - px, p.y - py) / ((coastal ? CONFIG.speedCoast : CONFIG.speedOpen) * slow);
+    days += Math.hypot(p.x - px, p.y - py) / ((coastal ? CONFIG.speedCoast : openSpeed(state)) * slow);
     px = p.x;
     py = p.y;
   }
@@ -225,7 +232,7 @@ export function updateHomeEstimate(state: GameState) {
     if (post.abandoned) continue;
     const site = state.world.sites[post.siteId];
     // Only posts that could be nearer than the nearest port are worth routing to.
-    if (Math.hypot(site.x - state.ship.x, site.y - state.ship.y) / CONFIG.speedOpen >= v.havenDays) continue;
+    if (Math.hypot(site.x - state.ship.x, site.y - state.ship.y) / openSpeed(state) >= v.havenDays) continue;
     const at = postAnchor(state, post);
     const r = at && routeTo(state, at);
     if (r && r.days < v.havenDays) v.havenDays = r.days;

@@ -134,3 +134,13 @@ describe('full run by a simple bot', () => {
     }
   });
 });
+
+describe('fever', () => {
+  it('is uncommon on full rations: about one outbreak in five 40-day voyages', () => {
+    const S = CONFIG.sickness;
+    let expected = 0;
+    for (let day = 1; day <= 40; day++) expected += S.base + Math.min(S.perDayMax, S.perDay * day);
+    expect(expected).toBeLessThan(0.3);
+    expect(expected).toBeGreaterThan(0.1);
+  });
+});

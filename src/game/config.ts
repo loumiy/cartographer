@@ -40,6 +40,20 @@ export const CONFIG = {
   shortRations: 0.6,
 
   /**
+   * Fever: a small daily chance that grows slowly with time at sea, much more on short rations or
+   * empty stores. About one outbreak in five 40-day voyages on full rations.
+   */
+  sickness: {
+    base: 0.002,
+    perDay: 0.00015,
+    perDayMax: 0.006,
+    shortRations: 0.015,
+    noStores: 0.05,
+    /** Chance that resting the crew still costs a life. */
+    restDeath: 0.15,
+  },
+
+  /**
    * A shore party brings back crew × (7–13 days) × the land's forage quality × its size factor,
    * in crew-days. Land that has been foraged recovers over a season.
    */
@@ -48,10 +62,14 @@ export const CONFIG = {
   /** Enlarged-hold refits, cargo units added per level. */
   holdLevels: [8, 8, 8],
 
-  /** Hulls. A brig carries more and takes storm and reef damage less hard. */
+  /**
+   * Hulls. The brig is the explorer's ship: far more stores (and refits that add half again on her
+   * bigger hull), faster in open water, a league more sight from her taller masts, and she takes
+   * storm and reef damage less hard. Fully refitted she carries about twice a pinnace's range.
+   */
   ships: {
-    pinnace: { label: 'Pinnace', stores: 500, hold: 16, crewMax: 20, toughness: 1, cost: 700 },
-    brig: { label: 'Brig', stores: 800, hold: 32, crewMax: 30, toughness: 0.7, cost: 1600 },
+    pinnace: { label: 'Pinnace', stores: 500, hold: 16, crewMax: 20, toughness: 1, cost: 700, refitScale: 1, openSpeed: 1, sight: 0 },
+    brig: { label: 'Brig', stores: 1400, hold: 32, crewMax: 30, toughness: 0.7, cost: 1600, refitScale: 1.5, openSpeed: 1.2, sight: 1 },
   },
 
   post: {
@@ -64,6 +82,8 @@ export const CONFIG = {
     fullFor: 3,
     halfFor: 5,
     abandonAt: 6,
+    /** A post works its site properly: it gathers this many times what a shore party would find. */
+    yield: 3,
     /** Warehouse holds this many seasons of output. */
     warehouseSeasons: 3,
     /** Stores and repairs at a post cost this much more than in port. */
@@ -72,16 +92,25 @@ export const CONFIG = {
 
   route: {
     /** Wages and victuals for a route ship, per season. */
-    costs: 40,
+    costs: 25,
     /** Per post on the route: the route ship keeps it supplied. */
-    postUpkeep: 30,
+    postUpkeep: 15,
     /** The route ship's master takes this share of the takings. */
-    masterShare: 0.25,
-    /** A route between two ports with no posts earns on trade alone. */
-    portTrade: 60,
-    baseRisk: 0.02,
-    hazardRisk: 0.004,
-    damageChance: 0.12,
+    masterShare: 0.15,
+    /** A route between two ports with no posts earns on trade alone: a base plus a little per league. */
+    portTrade: 150,
+    portTradePerLeague: 0.6,
+    /** Chance each season of a storm hit: a base, more for hazards passed and open water crossed. */
+    baseRisk: 0.03,
+    hazardRisk: 0.001,
+    openRisk: 0.03,
+    maxRisk: 0.15,
+    /** A storm hit means damage and half a season's takings. Route ships are never lost. */
+    hitDamage: 25,
+    /** A brig rides out storms better. */
+    brigRisk: 0.5,
+    /** Route cargo keeps at least this share of its price however many ships know the site. */
+    priceFloor: 0.6,
   },
 
   charterReward: 500,

@@ -12,6 +12,8 @@ import {
   planRoute,
   processHoldings,
   resupplyPost,
+  seasonsSinceSupplied,
+  routeStormChance,
   takeCommand,
 } from '../src/game/holdings';
 import { newGame } from '../src/game/state';
@@ -38,7 +40,7 @@ describe('trading posts', () => {
     expect(s.milestones).toContain('first_post');
     post.warehouse = 0;
     processHoldings(s);
-    expect(post.warehouse).toBe(site.maxStock);
+    expect(post.warehouse).toBe(site.maxStock * CONFIG.post.yield);
     expect(site.stock).toBe(0);
     s.ship.cargo = [];
     const got = collectFromPost(s, post);
@@ -55,7 +57,7 @@ describe('trading posts', () => {
     post.warehouse = 0;
     s.day += CONFIG.season * CONFIG.post.fullFor;
     processHoldings(s);
-    expect(post.warehouse).toBe(Math.round(site.maxStock / 2));
+    expect(post.warehouse).toBe(Math.round((site.maxStock * CONFIG.post.yield) / 2));
     s.ship.provisions = 500;
     resupplyPost(s, post);
     expect(post.lastSupplied).toBe(s.day);
@@ -111,7 +113,7 @@ describe('ships and routes', () => {
     expect(s.fleet[0].routeId).toBeNull();
   });
 
-  it('can lose a route ship', () => {
+  it('never loses a route ship, even on the stormiest route, and keeps its posts supplied', () => {
     const s = newGame('lost');
     s.cash = 5000;
     s.world.ports[1].known = true;
@@ -125,9 +127,59 @@ describe('ships and routes', () => {
     ]);
     if (typeof route === 'string') throw new Error(route);
     route.risk = 1;
-    processHoldings(s);
-    expect(s.fleet.length).toBe(0);
-    expect(s.routes.length).toBe(0);
+    for (let n = 0; n < 500; n++) {
+      s.day += CONFIG.season;
+      processHoldings(s);
+    }
+    expect(s.fleet.length).toBe(1);
+    expect(s.routes.length).toBe(1);
+  });
+
+  it('supplies a long-neglected post from the day the route starts, and for as long as it runs', () => {
+    const { s, site } = withSite('neglected-route');
+    const post = foundPost(s, site)!;
+    // Nobody has been near it for five seasons: on its own it would be halved and nearly abandoned.
+    s.day += CONFIG.season * 5;
+    const ship = buyShip(s, 'pinnace')!;
+    s.known.fill(1);
+    const route = createRoute(s, ship.id, [
+      { kind: 'port', id: 0 },
+      { kind: 'post', id: post.id },
+    ]);
+    if (typeof route === 'string') throw new Error(route);
+    for (let n = 0; n < 20; n++) {
+      s.day += CONFIG.season;
+      processHoldings(s);
+      expect(post.abandoned).toBe(false);
+      expect(seasonsSinceSupplied(s, post)).toBe(0);
+    }
+  });
+
+  it('pays for a post and a pinnace within a few seasons, and keeps its ship in repair', () => {
+    const { s, site } = withSite('payback');
+    s.world.ports[1].known = true;
+    s.expanded = true;
+    const post = foundPost(s, site)!;
+    const ship = buyShip(s, 'pinnace')!;
+    s.known.fill(1);
+    const route = createRoute(s, ship.id, [
+      { kind: 'port', id: 0 },
+      { kind: 'post', id: post.id },
+    ]);
+    if (typeof route === 'string') throw new Error(route);
+    // A typical route is very unlikely to be lost in a season.
+    expect(routeStormChance(s, route)).toBeLessThan(0.2);
+    route.risk = 0;
+    let earned = 0;
+    for (let n = 0; n < 4; n++) {
+      const cash = s.cash;
+      processHoldings(s);
+      earned += s.cash - cash;
+    }
+    const invested = CONFIG.post.cost + CONFIG.ships.pinnace.cost;
+    // Four seasons of a single-post route go most of the way to paying back post and ship.
+    expect(earned).toBeGreaterThan(invested * 0.6);
+    expect(s.fleet[0].hull).toBe(100);
   });
 });
 
@@ -148,5 +200,24 @@ describe('milestones', () => {
     post.warehouse = 0;
     processSeason(s);
     expect(post.warehouse).toBeGreaterThan(0);
+  });
+});
+
+describe('the brig as an explorer', () => {
+  it('outranges, outsails and outsees a pinnace', async () => {
+    const { openSpeed, sightRadius } = await import('../src/game/core');
+    const s = newGame('brig-range');
+    const pinnace = { cap: provisionCap(s), speed: openSpeed(s), sight: sightRadius(s) };
+    s.ship.refits.stores = CONFIG.storesLevels.length;
+    const fullPinnace = provisionCap(s);
+    s.ship.kind = 'brig';
+    s.ship.refits.stores = 0;
+    // A new brig carries more than a fully refitted pinnace...
+    expect(provisionCap(s)).toBeGreaterThan(fullPinnace);
+    s.ship.refits.stores = CONFIG.storesLevels.length;
+    // ...and fully refitted, about twice as much.
+    expect(provisionCap(s)).toBeGreaterThanOrEqual(2 * fullPinnace);
+    expect(openSpeed(s)).toBeGreaterThan(pinnace.speed);
+    expect(sightRadius(s)).toBe(pinnace.sight + 1);
   });
 });

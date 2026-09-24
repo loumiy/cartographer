@@ -5,6 +5,8 @@ import {
   chartPrice,
   crewMax,
   currentPort,
+  openSpeed,
+  sightRadius,
   daysOfStores,
   knownPorts,
   formatDate,
@@ -57,6 +59,7 @@ import {
   endRoute,
   planRoute,
   postLabel,
+  routeStormChance,
   seasonsSinceSupplied,
   stopName,
   takeCommand,
@@ -469,7 +472,7 @@ function outfitTab(ctx: UiContext) {
     ),
     row(
       `Provisions: ${days} days`,
-      `Room for ${capDays} days at this crew. 10 days cost ${money(cost10)}. Loaded, the stores reach about ${Math.round((days * CONFIG.speedOpen) / 2)} leagues out and back in open water; forage on the way to go farther.`,
+      `Room for ${capDays} days at this crew. 10 days cost ${money(cost10)}. Loaded, the stores reach about ${Math.round((days * openSpeed(state)) / 2)} leagues out and back in open water; forage on the way to go farther.`,
       button('−10', () => act((s) => sellProvisions(s, perDay * 10)), { kind: 'quiet', disabled: days < 10 ? 'Nothing to sell' : false, title: 'Sell back at half price' }),
       button('+10', () => act((s) => buyProvisions(s, perDay * 10)), { disabled: days >= capDays ? 'Stores are full' : state.cash < cost10 ? 'Not enough money' : false }),
       button('Fill', () => act((s) => buyProvisions(s, provisionCap(s))), { disabled: days >= capDays ? 'Stores are full' : false }),
@@ -503,11 +506,11 @@ function shipwrightTab(ctx: UiContext) {
           : button(`Buy · ${money(u.cost)}`, () => act((s) => buyUpgrade(s, u.key)), { disabled: state.cash < u.cost ? 'Not enough money' : false }),
       ),
     ),
-    h('p', { class: 'caption muted' }, `Sight: ${CONFIG.baseSight + state.upgrades.spyglass} leagues · stores ${provisionCap(state)} crew-days · hold ${cargoCap(state)} units.`),
+    h('p', { class: 'caption muted' }, `Sight: ${sightRadius(state)} leagues · stores ${provisionCap(state)} crew-days · hold ${cargoCap(state)} units.`),
     h('h3', { class: 'label section' }, 'Ships for sale'),
     row(
       'A brig',
-      `A larger hull: ${CONFIG.ships.brig.hold} units of hold, ${CONFIG.ships.brig.stores} crew-days of stores, up to ${CONFIG.ships.brig.crewMax} crew, and storms and reefs hurt her less. Lies here until you take command or put her on a route.`,
+      `The explorer’s ship: ${CONFIG.ships.brig.stores} crew-days of stores (${Math.round(CONFIG.ships.brig.stores / CONFIG.crewStart)} days for ${CONFIG.crewStart} crew, and refits add half again), ${Math.round((CONFIG.ships.brig.openSpeed - 1) * 100)}% faster in open water, a league more sight from her taller masts, ${CONFIG.ships.brig.hold} units of hold, up to ${CONFIG.ships.brig.crewMax} crew, and storms and reefs hurt her less. Lies here until you take command or put her on a route.`,
       button(`Buy · ${money(CONFIG.ships.brig.cost)}`, () => act((s) => buyShip(s, 'brig')), { disabled: state.cash < CONFIG.ships.brig.cost ? 'Not enough money' : false }),
     ),
     row(
@@ -531,6 +534,7 @@ function holdingsTab(ctx: UiContext) {
     'div',
     null,
     h('p', { class: 'caption muted' }, 'Trading posts gather cargo each season; ships on routes earn without us. Each season’s results are told when we reach port.'),
+    howHoldingsWork(posts.length === 0),
 
     h('h3', { class: 'label' }, 'Trading posts'),
     posts.length
@@ -602,7 +606,7 @@ function holdingsTab(ctx: UiContext) {
                 h(
                   'div',
                   { class: 'caption muted' },
-                  `${v?.name ?? 'No ship'} · ${r.length} leagues round · ${Math.round(r.risk * 100)}% a season she is lost · last season: `,
+                  `${v?.name ?? 'No ship'} · ${r.length} leagues round · storms halve ${pct(routeStormChance(state, r))} of seasons · last season: `,
                   h('span', { class: r.lastIncome >= 0 ? 'money' : 'risk' }, r.lastNote === 'Not yet sailed' ? r.lastNote : money(r.lastIncome)),
                 ),
               ),
@@ -621,6 +625,32 @@ function holdingsTab(ctx: UiContext) {
       ),
     ),
   );
+}
+
+/** The steps from a surveyed site to money arriving on its own, open until the first post is founded. */
+function howHoldingsWork(open: boolean) {
+  const P = CONFIG.post;
+  return h(
+    'details',
+    { class: 'how', open },
+    h('summary', { class: 'label' }, 'How posts and routes work'),
+    h(
+      'ol',
+      { class: 'caption how-steps' },
+      h('li', null, 'Survey a coast at landfall. A site it finds shows on the chart as a gilt disc.'),
+      h('li', null, `Come back to that site with ${money(P.cost)} and ${P.timber} units of timber in the hold (load it at any timber site). Make landfall within 5 leagues of the site and choose “Found a trading post”. It takes a day.`),
+      h('li', null, `The post gathers ${P.yield} times what a shore party would find there, every season (${CONFIG.season} days at sea), into its warehouse.`),
+      h('li', null, 'Collect it yourself at landfall, or buy a second ship at the shipwright and put her on a route that calls at the post. The route ship sells the cargo at the best port on her route each season and keeps the post supplied.'),
+      h('li', null, `A post on a route is always kept supplied. Any other post that nobody supplies for ${P.fullFor} seasons halves its output, and after ${P.abandonAt} it is abandoned; resupply it at landfall with ${P.supplyTimber} timber and ${P.supplyStores} crew-days of stores.`),
+      h('li', null, 'Route ships are kept in repair out of their takings and are never lost. Storms sometimes halve a season’s takings.'),
+    ),
+  );
+}
+
+/** A small chance as a percentage a person can read: "under 1%" rather than "0%". */
+function pct(p: number): string {
+  if (p < 0.01) return 'under 1%';
+  return `${Math.round(p * 100)}%`;
 }
 
 /** Pick stops in order; the route runs through them and back to the first. */
@@ -657,7 +687,7 @@ function routeBuilder(ctx: UiContext, draft: { vesselId: number; stops: RouteSto
           'p',
           { class: 'caption' },
           `${plan.length} leagues round · `,
-          h('span', { class: 'risk' }, `${Math.round(plan.risk * 100)}% a season she is lost`),
+          `storms halve ${pct(routeStormChance(state, { risk: plan.risk, vesselId: draft.vesselId }))} of seasons`,
           ' · about ',
           h('span', { class: 'money' }, money(plan.estimate)),
           ' a season after costs',

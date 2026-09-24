@@ -392,7 +392,8 @@ function rollEvents(state: GameState) {
   // The warm southern sea is stormier.
   const warm = regionOf(state.world, ship.x, ship.y) === 'row' && !rowIsCold(state.world);
   const stormP = (0.02 + 0.035 * rem) * (coastal ? 0.6 : 1) * (warm ? 1.5 : 1);
-  const sickP = 0.004 + (ship.rations === 'short' ? 0.03 : 0) + 0.0006 * v.days + (ship.provisions <= 0 ? 0.08 : 0);
+  const S = CONFIG.sickness;
+  const sickP = S.base + Math.min(S.perDayMax, S.perDay * v.days) + (ship.rations === 'short' ? S.shortRations : 0) + (ship.provisions <= 0 ? S.noStores : 0);
   const calmP = v.becalmedDays > 0 ? 0 : coastal ? 0.006 : 0.02;
   const spoilP = ship.provisions > 0 ? 0.01 : 0;
 
@@ -414,8 +415,8 @@ function rollEvents(state: GameState) {
           ? 'Short rations have told on the crew: fever runs through the forecastle.'
           : 'Fever runs through the forecastle. Men lie groaning in their hammocks.',
       choices: [
-        { id: 'rest', label: 'Heave to and rest the crew', hint: '2 days lost; at most 1 death', tone: 'safe' },
-        { id: 'press', label: 'Press on', hint: '1–3 deaths; slower for 4 days', tone: 'risk' },
+        { id: 'rest', label: 'Heave to and rest the crew', hint: '2 days lost; most likely all recover', tone: 'safe' },
+        { id: 'press', label: 'Press on', hint: 'Up to 2 deaths; slower for 4 days', tone: 'risk' },
       ],
     });
     return;
@@ -586,15 +587,15 @@ export function resolve(state: GameState, choiceId: string) {
 
     case 'sickness': {
       if (choiceId === 'rest') {
-        const dead = withRng(state, (rng) => rng.int(0, 1));
+        const dead = withRng(state, (rng) => (rng.chance(CONFIG.sickness.restDeath) ? 1 : 0));
         ship.crew -= dead;
         log(state, dead ? 'We rested the crew. One man died of the fever.' : 'We rested the crew. All pulled through.', dead ? 'bad' : 'info');
         passDays(state, 2);
       } else {
-        const dead = withRng(state, (rng) => rng.int(1, 3));
+        const dead = withRng(state, (rng) => rng.int(0, 2));
         ship.crew -= dead;
         if (v) v.slowDays = Math.max(v.slowDays, 4);
-        log(state, `We pressed on. ${dead} of the crew died, and the rest work slowly.`, 'bad');
+        log(state, dead ? `We pressed on. ${dead === 1 ? 'One man' : `${dead} of the crew`} died, and the rest work slowly.` : 'We pressed on. All pulled through, but the sick work slowly.', dead ? 'bad' : 'info');
       }
       checkLost(state);
       break;
@@ -978,7 +979,7 @@ function landfallAction(state: GameState, choiceId: string) {
     const got = Math.max(0, Math.min(room, gain));
     ship.provisions += got;
     result = `The shore party returns with water and game: ${Math.floor(got / Math.max(1, dailyRations(state)))} days of stores.`;
-    const mishap = withRng(state, (rng) => rng.weighted(['none', 'injury', 'fever'], [0.84, 0.1, 0.06]));
+    const mishap = withRng(state, (rng) => rng.weighted(['none', 'injury', 'fever'], [0.91, 0.05, 0.04]));
     if (mishap === 'injury') {
       ship.crew -= 1;
       result += ' One man did not come back: a fall on the rocks.';
