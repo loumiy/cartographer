@@ -74,13 +74,24 @@ export function postOutput(state: GameState, post: Post): number {
   if (post.abandoned) return 0;
   const since = seasonsSinceSupplied(state, post);
   const site = state.world.sites[post.siteId];
-  if (since < CONFIG.post.fullFor) return site.maxStock;
-  if (since < CONFIG.post.halfFor) return Math.round(site.maxStock / 2);
+  const full = site.maxStock * CONFIG.post.yield;
+  if (since < CONFIG.post.fullFor) return full;
+  if (since < CONFIG.post.halfFor) return Math.round(full / 2);
   return 0;
 }
 
 export function warehouseCap(state: GameState, post: Post): number {
-  return state.world.sites[post.siteId].maxStock * CONFIG.post.warehouseSeasons;
+  return state.world.sites[post.siteId].maxStock * CONFIG.post.yield * CONFIG.post.warehouseSeasons;
+}
+
+/** Chance a route's ship is lost in a season: only a share of storm hits sink her, fewer for a brig. */
+export function routeLossChance(state: GameState, route: { risk: number; vesselId: number }): number {
+  const v = state.fleet.find((f) => f.id === route.vesselId);
+  return stormChance(route.risk, v?.kind) * CONFIG.route.lossShare;
+}
+
+function stormChance(risk: number, kind: ShipKind | undefined): number {
+  return Math.min(CONFIG.route.maxRisk, risk) * (kind === 'brig' ? CONFIG.route.brigRisk : 1);
 }
 
 export function cannotResupply(state: GameState): string | null {
@@ -250,7 +261,7 @@ export function planRoute(state: GameState, stops: RouteStop[]): RoutePlan | str
       if (!nearLand) open++;
     }
   }
-  const risk = Math.min(0.3, R.baseRisk + R.hazardRisk * hazards + 0.03 * (open / Math.max(1, steps)));
+  const risk = Math.min(R.maxRisk, R.baseRisk + R.hazardRisk * hazards + R.openRisk * (open / Math.max(1, steps)));
   return { length: Math.round(length), path: way, risk, estimate: Math.round(routeTakings(state, stops, length).net) };
 }
 
@@ -265,10 +276,10 @@ function routeTakings(state: GameState, stops: RouteStop[], length: number) {
     const site = state.world.sites[post.siteId];
     const qty = Math.max(post.warehouse, postOutput(state, post));
     const best = Math.max(...ports.map((p) => p.prices[site.type]));
-    gross += qty * CONFIG.resources[site.type].price * (0.8 + 0.4 * site.richness) * knownFactor(site.knownBy) * best;
+    gross += qty * CONFIG.resources[site.type].price * (0.8 + 0.4 * site.richness) * Math.max(R.priceFloor, knownFactor(site.knownBy)) * best;
     carried += qty;
   }
-  if (!posts.length && ports.length >= 2) gross += R.portTrade + length * 0.3;
+  if (!posts.length && ports.length >= 2) gross += R.portTrade + length * R.portTradePerLeague;
   const costs = R.costs + R.postUpkeep * posts.length;
   return { gross, costs, carried, posts, net: gross * (1 - R.masterShare) - costs };
 }
@@ -324,9 +335,10 @@ export function processHoldings(state: GameState) {
   for (const route of state.routes.slice()) {
     const v = state.fleet.find((f) => f.id === route.vesselId);
     if (!v) continue;
-    const roll = withRng(state, (rng) => rng.next());
-    const risk = route.risk * (v.kind === 'brig' ? 0.7 : 1);
-    if (roll < risk) {
+    const R = CONFIG.route;
+    // A storm hit usually means damage and a poor season; only rarely is the ship lost.
+    const hit = withRng(state, (rng) => rng.chance(stormChance(route.risk, v.kind)));
+    if (hit && withRng(state, (rng) => rng.chance(R.lossShare))) {
       state.fleet = state.fleet.filter((f) => f.id !== v.id);
       state.routes = state.routes.filter((r) => r.id !== route.id);
       state.news.push(`The ${v.name} did not come in from her route. She is given up for lost.`);
@@ -339,10 +351,17 @@ export function processHoldings(state: GameState) {
     }
     let net = takings.net;
     let note = takings.carried ? `Carried ${Math.round(takings.carried)} units` : 'Traded between ports';
-    if (withRng(state, (rng) => rng.chance(CONFIG.route.damageChance))) {
-      v.hull = Math.max(20, v.hull - 20);
-      net = Math.round(net / 2);
-      note += '; storm damage cost half the season';
+    if (hit) {
+      v.hull = Math.max(10, v.hull - Math.round(R.hitDamage * CONFIG.ships[v.kind].toughness));
+      net /= 2;
+      note += '; a storm cost half the season';
+    }
+    // She is kept in repair between rounds, paid out of the takings.
+    const repairs = Math.ceil((100 - v.hull) * CONFIG.repairCostPerPoint);
+    if (repairs > 0) {
+      net -= repairs;
+      v.hull = 100;
+      note += `; repairs ${money(repairs)}`;
     }
     net = Math.round(net);
     route.lastIncome = net;

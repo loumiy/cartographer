@@ -12,6 +12,7 @@ import {
   planRoute,
   processHoldings,
   resupplyPost,
+  routeLossChance,
   takeCommand,
 } from '../src/game/holdings';
 import { newGame } from '../src/game/state';
@@ -38,7 +39,7 @@ describe('trading posts', () => {
     expect(s.milestones).toContain('first_post');
     post.warehouse = 0;
     processHoldings(s);
-    expect(post.warehouse).toBe(site.maxStock);
+    expect(post.warehouse).toBe(site.maxStock * CONFIG.post.yield);
     expect(site.stock).toBe(0);
     s.ship.cargo = [];
     const got = collectFromPost(s, post);
@@ -55,7 +56,7 @@ describe('trading posts', () => {
     post.warehouse = 0;
     s.day += CONFIG.season * CONFIG.post.fullFor;
     processHoldings(s);
-    expect(post.warehouse).toBe(Math.round(site.maxStock / 2));
+    expect(post.warehouse).toBe(Math.round((site.maxStock * CONFIG.post.yield) / 2));
     s.ship.provisions = 500;
     resupplyPost(s, post);
     expect(post.lastSupplied).toBe(s.day);
@@ -124,10 +125,44 @@ describe('ships and routes', () => {
       { kind: 'port', id: 1 },
     ]);
     if (typeof route === 'string') throw new Error(route);
+    // Even on the stormiest route a loss is rare: it takes many seasons.
     route.risk = 1;
-    processHoldings(s);
+    expect(routeLossChance(s, route)).toBeLessThanOrEqual(CONFIG.route.maxRisk * CONFIG.route.lossShare);
+    let seasons = 0;
+    while (s.fleet.length && seasons < 5000) {
+      processHoldings(s);
+      seasons++;
+    }
     expect(s.fleet.length).toBe(0);
     expect(s.routes.length).toBe(0);
+    expect(seasons).toBeGreaterThan(3);
+  });
+
+  it('pays for a post and a pinnace within a few seasons, and keeps its ship in repair', () => {
+    const { s, site } = withSite('payback');
+    s.world.ports[1].known = true;
+    s.expanded = true;
+    const post = foundPost(s, site)!;
+    const ship = buyShip(s, 'pinnace')!;
+    s.known.fill(1);
+    const route = createRoute(s, ship.id, [
+      { kind: 'port', id: 0 },
+      { kind: 'post', id: post.id },
+    ]);
+    if (typeof route === 'string') throw new Error(route);
+    // A typical route is very unlikely to be lost in a season.
+    expect(routeLossChance(s, route)).toBeLessThan(0.02);
+    route.risk = 0;
+    let earned = 0;
+    for (let n = 0; n < 4; n++) {
+      const cash = s.cash;
+      processHoldings(s);
+      earned += s.cash - cash;
+    }
+    const invested = CONFIG.post.cost + CONFIG.ships.pinnace.cost;
+    // Four seasons of a single-post route go most of the way to paying back post and ship.
+    expect(earned).toBeGreaterThan(invested * 0.6);
+    expect(s.fleet[0].hull).toBe(100);
   });
 });
 

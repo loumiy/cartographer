@@ -57,6 +57,7 @@ import {
   endRoute,
   planRoute,
   postLabel,
+  routeLossChance,
   seasonsSinceSupplied,
   stopName,
   takeCommand,
@@ -531,6 +532,7 @@ function holdingsTab(ctx: UiContext) {
     'div',
     null,
     h('p', { class: 'caption muted' }, 'Trading posts gather cargo each season; ships on routes earn without us. Each season’s results are told when we reach port.'),
+    howHoldingsWork(posts.length === 0),
 
     h('h3', { class: 'label' }, 'Trading posts'),
     posts.length
@@ -602,7 +604,7 @@ function holdingsTab(ctx: UiContext) {
                 h(
                   'div',
                   { class: 'caption muted' },
-                  `${v?.name ?? 'No ship'} · ${r.length} leagues round · ${Math.round(r.risk * 100)}% a season she is lost · last season: `,
+                  `${v?.name ?? 'No ship'} · ${r.length} leagues round · ${pct(routeLossChance(state, r))} a season she is lost · last season: `,
                   h('span', { class: r.lastIncome >= 0 ? 'money' : 'risk' }, r.lastNote === 'Not yet sailed' ? r.lastNote : money(r.lastIncome)),
                 ),
               ),
@@ -621,6 +623,32 @@ function holdingsTab(ctx: UiContext) {
       ),
     ),
   );
+}
+
+/** The steps from a surveyed site to money arriving on its own, open until the first post is founded. */
+function howHoldingsWork(open: boolean) {
+  const P = CONFIG.post;
+  return h(
+    'details',
+    { class: 'how', open },
+    h('summary', { class: 'label' }, 'How posts and routes work'),
+    h(
+      'ol',
+      { class: 'caption how-steps' },
+      h('li', null, 'Survey a coast at landfall. A site it finds shows on the chart as a gilt disc.'),
+      h('li', null, `Come back to that site with ${money(P.cost)} and ${P.timber} units of timber in the hold (load it at any timber site). Make landfall within 5 leagues of the site and choose “Found a trading post”. It takes a day.`),
+      h('li', null, `The post gathers ${P.yield} times what a shore party would find there, every season (${CONFIG.season} days at sea), into its warehouse.`),
+      h('li', null, 'Collect it yourself at landfall, or buy a second ship at the shipwright and put her on a route that calls at the post. The route ship sells the cargo at the best port on her route each season and keeps the post supplied.'),
+      h('li', null, `A post nobody supplies for ${P.fullFor} seasons halves its output; after ${P.abandonAt} it is abandoned. Resupply it at landfall with ${P.supplyTimber} timber and ${P.supplyStores} crew-days of stores, or let a route do it.`),
+      h('li', null, 'Route ships are kept in repair out of their takings. Storms sometimes halve a season; very rarely a ship is lost.'),
+    ),
+  );
+}
+
+/** A small chance as a percentage a person can read: "under 1%" rather than "0%". */
+function pct(p: number): string {
+  if (p < 0.01) return 'under 1%';
+  return `${Math.round(p * 100)}%`;
 }
 
 /** Pick stops in order; the route runs through them and back to the first. */
@@ -657,7 +685,8 @@ function routeBuilder(ctx: UiContext, draft: { vesselId: number; stops: RouteSto
           'p',
           { class: 'caption' },
           `${plan.length} leagues round · `,
-          h('span', { class: 'risk' }, `${Math.round(plan.risk * 100)}% a season she is lost`),
+          h('span', { class: 'risk' }, `${pct(routeLossChance(state, { risk: plan.risk, vesselId: draft.vesselId }))} a season she is lost`),
+          ` (storm damage ${pct(Math.min(CONFIG.route.maxRisk, plan.risk) * (v.kind === 'brig' ? CONFIG.route.brigRisk : 1))})`,
           ' · about ',
           h('span', { class: 'money' }, money(plan.estimate)),
           ' a season after costs',
