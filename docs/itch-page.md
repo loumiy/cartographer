@@ -67,7 +67,7 @@ A voyage takes 3 to 8 minutes. Paying off the ship takes an hour or two, and the
 ## Suggested page settings
 
 - **Classification:** Game
-- **Kind of project:** HTML (upload the zipped `dist/` folder from `npm run build`; tick "This file will be played in the browser")
+- **Kind of project:** HTML (run `npm run build`, then zip the contents of `dist/` so `index.html` sits at the top of the zip; tick "This file will be played in the browser")
 - **Genre:** Strategy (alternatively Simulation)
 - **Tags:** exploration, sailing, age-of-exploration, map, procedural-generation, trading, singleplayer, historical, cartography
 - **Inputs:** Mouse, Keyboard
