@@ -285,7 +285,7 @@ export function reveal(state: GameState) {
     raise(state, {
       kind: 'land_ho',
       title: 'Land ho!',
-      body: `The lookout sights ${newLand.length > 1 ? 'new land in several places' : `a ${lm.kind}`} to the ${compass(
+      body: `The lookout sights ${newLand.length > 1 ? 'new land in several places' : `${lm.kind === 'islet' ? 'an' : 'a'} ${lm.kind}`} to the ${compass(
         lm.cx - cx,
         lm.cy - cy,
       )}. Nobody at home has charted it.`,
