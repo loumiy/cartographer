@@ -105,8 +105,7 @@ export const CONFIG = {
     hazardRisk: 0.001,
     openRisk: 0.03,
     maxRisk: 0.15,
-    /** A storm hit usually means damage and half a season's takings; this share of hits sinks her. */
-    lossShare: 0.1,
+    /** A storm hit means damage and half a season's takings. Route ships are never lost. */
     hitDamage: 25,
     /** A brig rides out storms better. */
     brigRisk: 0.5,

@@ -65,7 +65,13 @@ export function postLabel(state: GameState, post: Post): string {
   return lm.name ? `${CONFIG.resources[site.type].label} post on ${lm.name}` : post.name;
 }
 
+/** A post that a route calls at is kept supplied by the route ship. */
+export function onRoute(state: GameState, post: Post): boolean {
+  return state.routes.some((r) => r.stops.some((st) => st.kind === 'post' && st.id === post.id));
+}
+
 export function seasonsSinceSupplied(state: GameState, post: Post): number {
+  if (onRoute(state, post)) return 0;
   return Math.floor((state.day - post.lastSupplied) / CONFIG.season);
 }
 
@@ -84,10 +90,10 @@ export function warehouseCap(state: GameState, post: Post): number {
   return state.world.sites[post.siteId].maxStock * CONFIG.post.yield * CONFIG.post.warehouseSeasons;
 }
 
-/** Chance a route's ship is lost in a season: only a share of storm hits sink her, fewer for a brig. */
-export function routeLossChance(state: GameState, route: { risk: number; vesselId: number }): number {
+/** Chance a route has a stormy season (half the takings, and repairs). Route ships are never lost. */
+export function routeStormChance(state: GameState, route: { risk: number; vesselId: number }): number {
   const v = state.fleet.find((f) => f.id === route.vesselId);
-  return stormChance(route.risk, v?.kind) * CONFIG.route.lossShare;
+  return stormChance(route.risk, v?.kind);
 }
 
 function stormChance(risk: number, kind: ShipKind | undefined): number {
@@ -295,6 +301,11 @@ export function createRoute(state: GameState, vesselId: number, stops: RouteStop
   const route: Route = { id: state.nextId++, vesselId, stops, length: plan.length, path: plan.path, risk: plan.risk, lastIncome: 0, lastNote: 'Not yet sailed' };
   state.routes.push(route);
   v.routeId = route.id;
+  // Her first call brings supplies: the posts on her route are supplied from today.
+  for (const st of stops) {
+    const post = st.kind === 'post' ? state.posts.find((p) => p.id === st.id) : undefined;
+    if (post) post.lastSupplied = state.day;
+  }
   log(state, `The ${v.name} sails on a route: ${stops.map((s) => stopName(state, s)).join(', ')}.`, 'good');
   checkMilestones(state);
   return route;
@@ -336,14 +347,8 @@ export function processHoldings(state: GameState) {
     const v = state.fleet.find((f) => f.id === route.vesselId);
     if (!v) continue;
     const R = CONFIG.route;
-    // A storm hit usually means damage and a poor season; only rarely is the ship lost.
+    // A stormy season means damage and half the takings; the ship always comes in.
     const hit = withRng(state, (rng) => rng.chance(stormChance(route.risk, v.kind)));
-    if (hit && withRng(state, (rng) => rng.chance(R.lossShare))) {
-      state.fleet = state.fleet.filter((f) => f.id !== v.id);
-      state.routes = state.routes.filter((r) => r.id !== route.id);
-      state.news.push(`The ${v.name} did not come in from her route. She is given up for lost.`);
-      continue;
-    }
     const takings = routeTakings(state, route.stops, route.length);
     for (const post of takings.posts) {
       post.warehouse = 0;

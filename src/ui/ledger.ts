@@ -59,7 +59,7 @@ import {
   endRoute,
   planRoute,
   postLabel,
-  routeLossChance,
+  routeStormChance,
   seasonsSinceSupplied,
   stopName,
   takeCommand,
@@ -606,7 +606,7 @@ function holdingsTab(ctx: UiContext) {
                 h(
                   'div',
                   { class: 'caption muted' },
-                  `${v?.name ?? 'No ship'} · ${r.length} leagues round · ${pct(routeLossChance(state, r))} a season she is lost · last season: `,
+                  `${v?.name ?? 'No ship'} · ${r.length} leagues round · storms halve ${pct(routeStormChance(state, r))} of seasons · last season: `,
                   h('span', { class: r.lastIncome >= 0 ? 'money' : 'risk' }, r.lastNote === 'Not yet sailed' ? r.lastNote : money(r.lastIncome)),
                 ),
               ),
@@ -641,8 +641,8 @@ function howHoldingsWork(open: boolean) {
       h('li', null, `Come back to that site with ${money(P.cost)} and ${P.timber} units of timber in the hold (load it at any timber site). Make landfall within 5 leagues of the site and choose “Found a trading post”. It takes a day.`),
       h('li', null, `The post gathers ${P.yield} times what a shore party would find there, every season (${CONFIG.season} days at sea), into its warehouse.`),
       h('li', null, 'Collect it yourself at landfall, or buy a second ship at the shipwright and put her on a route that calls at the post. The route ship sells the cargo at the best port on her route each season and keeps the post supplied.'),
-      h('li', null, `A post nobody supplies for ${P.fullFor} seasons halves its output; after ${P.abandonAt} it is abandoned. Resupply it at landfall with ${P.supplyTimber} timber and ${P.supplyStores} crew-days of stores, or let a route do it.`),
-      h('li', null, 'Route ships are kept in repair out of their takings. Storms sometimes halve a season; very rarely a ship is lost.'),
+      h('li', null, `A post on a route is always kept supplied. Any other post that nobody supplies for ${P.fullFor} seasons halves its output, and after ${P.abandonAt} it is abandoned; resupply it at landfall with ${P.supplyTimber} timber and ${P.supplyStores} crew-days of stores.`),
+      h('li', null, 'Route ships are kept in repair out of their takings and are never lost. Storms sometimes halve a season’s takings.'),
     ),
   );
 }
@@ -687,8 +687,7 @@ function routeBuilder(ctx: UiContext, draft: { vesselId: number; stops: RouteSto
           'p',
           { class: 'caption' },
           `${plan.length} leagues round · `,
-          h('span', { class: 'risk' }, `${pct(routeLossChance(state, { risk: plan.risk, vesselId: draft.vesselId }))} a season she is lost`),
-          ` (storm damage ${pct(Math.min(CONFIG.route.maxRisk, plan.risk) * (v.kind === 'brig' ? CONFIG.route.brigRisk : 1))})`,
+          `storms halve ${pct(routeStormChance(state, { risk: plan.risk, vesselId: draft.vesselId }))} of seasons`,
           ' · about ',
           h('span', { class: 'money' }, money(plan.estimate)),
           ' a season after costs',

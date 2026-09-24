@@ -12,7 +12,8 @@ import {
   planRoute,
   processHoldings,
   resupplyPost,
-  routeLossChance,
+  seasonsSinceSupplied,
+  routeStormChance,
   takeCommand,
 } from '../src/game/holdings';
 import { newGame } from '../src/game/state';
@@ -112,7 +113,7 @@ describe('ships and routes', () => {
     expect(s.fleet[0].routeId).toBeNull();
   });
 
-  it('can lose a route ship', () => {
+  it('never loses a route ship, even on the stormiest route, and keeps its posts supplied', () => {
     const s = newGame('lost');
     s.cash = 5000;
     s.world.ports[1].known = true;
@@ -125,17 +126,33 @@ describe('ships and routes', () => {
       { kind: 'port', id: 1 },
     ]);
     if (typeof route === 'string') throw new Error(route);
-    // Even on the stormiest route a loss is rare: it takes many seasons.
     route.risk = 1;
-    expect(routeLossChance(s, route)).toBeLessThanOrEqual(CONFIG.route.maxRisk * CONFIG.route.lossShare);
-    let seasons = 0;
-    while (s.fleet.length && seasons < 5000) {
+    for (let n = 0; n < 500; n++) {
+      s.day += CONFIG.season;
       processHoldings(s);
-      seasons++;
     }
-    expect(s.fleet.length).toBe(0);
-    expect(s.routes.length).toBe(0);
-    expect(seasons).toBeGreaterThan(3);
+    expect(s.fleet.length).toBe(1);
+    expect(s.routes.length).toBe(1);
+  });
+
+  it('supplies a long-neglected post from the day the route starts, and for as long as it runs', () => {
+    const { s, site } = withSite('neglected-route');
+    const post = foundPost(s, site)!;
+    // Nobody has been near it for five seasons: on its own it would be halved and nearly abandoned.
+    s.day += CONFIG.season * 5;
+    const ship = buyShip(s, 'pinnace')!;
+    s.known.fill(1);
+    const route = createRoute(s, ship.id, [
+      { kind: 'port', id: 0 },
+      { kind: 'post', id: post.id },
+    ]);
+    if (typeof route === 'string') throw new Error(route);
+    for (let n = 0; n < 20; n++) {
+      s.day += CONFIG.season;
+      processHoldings(s);
+      expect(post.abandoned).toBe(false);
+      expect(seasonsSinceSupplied(s, post)).toBe(0);
+    }
   });
 
   it('pays for a post and a pinnace within a few seasons, and keeps its ship in repair', () => {
@@ -151,7 +168,7 @@ describe('ships and routes', () => {
     ]);
     if (typeof route === 'string') throw new Error(route);
     // A typical route is very unlikely to be lost in a season.
-    expect(routeLossChance(s, route)).toBeLessThan(0.02);
+    expect(routeStormChance(s, route)).toBeLessThan(0.2);
     route.risk = 0;
     let earned = 0;
     for (let n = 0; n < 4; n++) {
