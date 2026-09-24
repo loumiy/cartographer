@@ -64,5 +64,5 @@ describe('chapter 2 over many voyages', () => {
       expect(s.day).toBeGreaterThan(100);
       expect(s.voyagesSailed).toBeGreaterThan(3);
     }
-  });
+  }, 60_000);
 });

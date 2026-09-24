@@ -23,7 +23,7 @@ Add `?seed=anything` to the URL to sail a specific sea. The same seed always mak
 - **Landfall**: send a shore party for stores, survey the coast for timber, furs, spice or pearls, load cargo, and name what you found. Bigger land feeds a shore party better, and land that has just been foraged needs a season to recover, so long voyages are made by **island hopping**: plan a chain of landfalls and refill at each.
 - **Range**: a new pinnace carries about 41 days of stores for 12 crew. Three enlarged-stores refits (£150, £350, £700) take her to 92 days: enough, with island hopping, to reach every corner of the first sea and come back.
 - **Home**, sell each chart to the Admiralty or keep a resource site secret. Secrets pay full cargo price until someone else finds them.
-- Each season (60 days at sea) the financier wants £200, collected when you reach port. Pay off £2,500 and the ship is yours: payments stop and the game carries on. Missing a payment, or losing the ship, ends the game.
+- Each season (60 days at sea) the financier wants £200, collected when you reach port. Pay off £2,500 and the ship is yours: payments stop and the game carries on. Missing a payment, or losing the ship, ends the game, but not for good: every voyage leaves a checkpoint on the quay, and after a disaster you can **return to port before the voyage**. Everything from that voyage is lost, the chart it drew included, and the weather won't repeat itself.
 
 ### Chapter 2: the far shore
 

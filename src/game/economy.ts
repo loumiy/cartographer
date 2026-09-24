@@ -22,6 +22,7 @@ import { contractElapsed, deliverableQty, gameOver, regionShare, reveal } from '
 import type { ChartItem, Contract, GameState, ResourceType, Voyage, VoyageReport } from './types';
 import { checkMilestones, processHoldings } from './holdings';
 import { findPath } from './pathfind';
+import { takeCheckpoint } from './state';
 import { driftIce, inRect, isCoast } from './world';
 
 // ---------------------------------------------------------------------------
@@ -78,6 +79,8 @@ export function canSail(state: GameState): string | null {
 
 export function setSail(state: GameState) {
   if (canSail(state)) return;
+  // A checkpoint on the quay: if this voyage ends in disaster, we can come back to here.
+  state.checkpoint = takeCheckpoint(state);
   state.cash -= voyageCost(state);
   const port = currentPort(state);
   const dock = port.dock;

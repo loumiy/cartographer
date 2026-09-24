@@ -151,7 +151,9 @@ export function gameOver(state: GameState, outcome: 'lost', title: string, body:
   if (state.mode === 'over') return;
   state.mode = 'over';
   state.outcome = outcome;
-  state.pending = [{ kind: 'gameover', title, body, choices: [{ id: 'new', label: 'Begin a new game' }] }];
+  const choices = [{ id: 'new', label: 'Begin a new game' }];
+  if (state.checkpoint) choices.unshift({ id: 'retry', label: 'Return to port before the voyage' });
+  state.pending = [{ kind: 'gameover', title, body, choices }];
   log(state, `${title}. ${body}`, 'bad');
 }
 

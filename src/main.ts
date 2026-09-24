@@ -3,7 +3,7 @@ import './styles/app.css';
 import { CONFIG } from './game/config';
 import { money } from './game/core';
 import { addWaypoint, courseHome, removeLastWaypoint, resolve, stepSea, togglePause } from './game/sea';
-import { deserialize, newGame, serialize } from './game/state';
+import { deserialize, newGame, restoreCheckpoint, serialize } from './game/state';
 import type { GameState } from './game/types';
 import { renderCard } from './ui/card';
 import { Chart } from './ui/chart';
@@ -34,7 +34,8 @@ function loadSave(): GameState | null {
 
 function writeSave(state: GameState) {
   try {
-    if (state.mode === 'over') storage()?.removeItem(SAVE_KEY);
+    // A lost game with no checkpoint is over for good; with one, it can still be taken back.
+    if (state.mode === 'over' && !state.checkpoint) storage()?.removeItem(SAVE_KEY);
     else storage()?.setItem(SAVE_KEY, serialize(state));
   } catch {
     /* Private mode or full storage: the game still plays, it just won't resume. */
@@ -198,10 +199,20 @@ function startGame(state: GameState) {
     if (it === lastCard && key === lastCardBody && it?.kind !== 'arrival') return;
     lastCard = it;
     lastCardBody = key;
-    const card = renderCard(ctx, () => {
-      stopLoop?.();
-      startGame(newGame(randomSeed()));
-    });
+    const card = renderCard(
+      ctx,
+      () => {
+        stopLoop?.();
+        startGame(newGame(randomSeed()));
+      },
+      () => {
+        const restored = restoreCheckpoint(state);
+        if (!restored) return;
+        stopLoop?.();
+        writeSave(restored);
+        startGame(restored);
+      },
+    );
     cardHost.replaceChildren(...(card ? [card] : []));
     if (card) {
       // Lay the card on the side of the chart away from the ship.

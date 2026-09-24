@@ -380,5 +380,10 @@ export interface GameState {
   /** News that happened while at sea, told on return. */
   news: string[];
   log: LogEntry[];
-  stats: { cellsCharted: number; landmassesNamed: number; earned: number; treasure: number; paidOffDay?: number };
+  stats: { cellsCharted: number; landmassesNamed: number; earned: number; treasure: number; paidOffDay?: number; retries?: number };
+  /**
+   * The game as it stood on the quay before the current (or last) voyage, saved as text. If the
+   * voyage ends in disaster, the player can go back to it.
+   */
+  checkpoint?: string;
 }

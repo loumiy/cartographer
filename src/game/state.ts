@@ -90,6 +90,28 @@ export function serialize(state: GameState): string {
   });
 }
 
+/** The game as it stands, as text, without any older checkpoint inside it. */
+export function takeCheckpoint(state: GameState): string {
+  const { checkpoint: _older, ...rest } = state;
+  return serialize(rest as GameState);
+}
+
+/**
+ * Go back to the quay before the voyage that ended in disaster. Everything from that voyage is
+ * lost, the chart it drew included. The weather is not the same the second time round.
+ */
+export function restoreCheckpoint(state: GameState): GameState | null {
+  if (!state.checkpoint) return null;
+  const restored = deserialize(state.checkpoint);
+  if (!restored) return null;
+  const retries = (state.stats.retries ?? 0) + 1;
+  restored.stats.retries = retries;
+  restored.rng = (restored.rng ^ hashSeed(`retry:${retries}`)) >>> 0;
+  restored.checkpoint = state.checkpoint;
+  log(restored, 'We are back on the quay, before the voyage that went wrong. What it charted is lost with it.', 'info');
+  return restored;
+}
+
 export function deserialize(text: string): GameState | null {
   try {
     const state = JSON.parse(text, (_key, value) => {
